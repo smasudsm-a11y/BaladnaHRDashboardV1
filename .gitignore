@@ -1,0 +1,6 @@
+.claude/
+~$*.xlsx
+~$*.docx
+~$*.doc
+~$*.xls
+.~lock.*
