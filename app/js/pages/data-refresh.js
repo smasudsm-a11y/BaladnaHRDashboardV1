@@ -10,6 +10,10 @@ const UPLOAD_UNITS = [
     id: "employee_master", fileLabel: "01 — Employee Master",
     sheets: [{
       sheetName: "Employee Master Data", table: "employee_master",
+      // 9 other tables FK-reference employee_id here, so a delete-then-insert
+      // replace would violate those constraints as soon as any of them has data.
+      // Upserted by employee_id instead — see 10_employee_master_upsert.sql.
+      upsertKey: "employee_id",
       dateFields: ["date_of_birth", "hire_date", "confirmation_date", "termination_date"],
       fields: {
         "Employee ID": "employee_id", "Employee Number": "employee_number", "Employee Name": "employee_name",
@@ -285,8 +289,11 @@ export function render({ contentEl }) {
       return { table: spec.table, currentCount: count ?? 0, newCount: rows.length, sample: rows.slice(0, 3) };
     }));
 
+    const anyUpsert = parsed.some(({ spec }) => spec.upsertKey);
+    const anyReplace = parsed.some(({ spec }) => !spec.upsertKey);
     previewEl.innerHTML = `
-      <div class="note-banner"><b>This will fully replace</b> the table(s) below — existing rows are deleted, then the parsed file's rows are inserted.</div>
+      ${anyReplace ? `<div class="note-banner"><b>This will fully replace</b> the table(s) below — existing rows are deleted, then the parsed file's rows are inserted.</div>` : ""}
+      ${anyUpsert ? `<div class="note-banner"><b>This will update in place</b> — rows are matched by Employee ID and updated, new employees are added. Rows removed from the file are left untouched (not deleted), since other tables' history may still reference them.</div>` : ""}
       ${summaries.map((s) => `
         <div class="refresh-summary">
           <b>${s.table}:</b> ${s.currentCount} current rows → ${s.newCount} rows in this file
@@ -339,19 +346,31 @@ export function render({ contentEl }) {
     onProgress(0, "Starting…");
 
     for (const { spec, rows } of parsed) {
-      onProgress(doneRows / totalRows, `Clearing ${spec.table}…`);
-      const pkField = Object.values(spec.fields)[0];
-      const { error: delError } = await client.from(spec.table).delete().not(pkField, "is", null);
-      if (delError) throw new Error(`Failed to clear ${spec.table}: ${delError.message}`);
-
       const batchSize = 500;
-      if (rows.length === 0) continue;
-      for (let i = 0; i < rows.length; i += batchSize) {
-        const batch = rows.slice(i, i + batchSize);
-        const { error: insError } = await client.from(spec.table).insert(batch);
-        if (insError) throw new Error(`Failed to insert into ${spec.table} (rows ${i + 1}-${i + batch.length}): ${insError.message}`);
-        doneRows += batch.length;
-        onProgress(doneRows / totalRows, `Uploading ${spec.table}: ${doneRows}/${totalRows} rows…`);
+
+      if (spec.upsertKey) {
+        onProgress(doneRows / totalRows, `Updating ${spec.table}…`);
+        for (let i = 0; i < rows.length; i += batchSize) {
+          const batch = rows.slice(i, i + batchSize);
+          const { error: upError } = await client.from(spec.table).upsert(batch, { onConflict: spec.upsertKey });
+          if (upError) throw new Error(`Failed to update ${spec.table} (rows ${i + 1}-${i + batch.length}): ${upError.message}`);
+          doneRows += batch.length;
+          onProgress(doneRows / totalRows, `Updating ${spec.table}: ${doneRows}/${totalRows} rows…`);
+        }
+      } else {
+        onProgress(doneRows / totalRows, `Clearing ${spec.table}…`);
+        const pkField = Object.values(spec.fields)[0];
+        const { error: delError } = await client.from(spec.table).delete().not(pkField, "is", null);
+        if (delError) throw new Error(`Failed to clear ${spec.table}: ${delError.message}`);
+
+        if (rows.length === 0) continue;
+        for (let i = 0; i < rows.length; i += batchSize) {
+          const batch = rows.slice(i, i + batchSize);
+          const { error: insError } = await client.from(spec.table).insert(batch);
+          if (insError) throw new Error(`Failed to insert into ${spec.table} (rows ${i + 1}-${i + batch.length}): ${insError.message}`);
+          doneRows += batch.length;
+          onProgress(doneRows / totalRows, `Uploading ${spec.table}: ${doneRows}/${totalRows} rows…`);
+        }
       }
 
       await client.from("data_refresh_log").insert({ table_name: spec.table, row_count: rows.length, uploaded_by: uploadedBy });
