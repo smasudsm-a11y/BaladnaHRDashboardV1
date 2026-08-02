@@ -12,7 +12,8 @@ import * as attrition from "./pages/attrition.js";
 import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
-import * as admin from "./pages/admin.js";
+import * as manageAccess from "./pages/admin.js";
+import * as dataRefresh from "./pages/data-refresh.js";
 
 const NAV = [
   { group: "Overview", pages: [exec] },
@@ -27,6 +28,9 @@ NAV.forEach((g) => g.pages.forEach((p) => pagesById.set(p.meta.id, p)));
 
 const SECTION_LIST = [];
 NAV.forEach((g) => g.pages.forEach((p) => SECTION_LIST.push({ id: p.meta.id, label: p.meta.label })));
+
+const ADMIN_PAGES = [manageAccess, dataRefresh];
+const adminPagesById = new Map(ADMIN_PAGES.map((p) => [p.meta.id, p]));
 
 let db = null;
 let currentPage = exec;
@@ -57,11 +61,13 @@ function buildNav(allowed, showAdmin) {
     label.className = "nav-group-label";
     label.textContent = "Admin";
     nav.appendChild(label);
-    const a = document.createElement("a");
-    a.className = "nav-link";
-    a.href = `#${admin.meta.id}`;
-    a.innerHTML = `<span class="nav-dot"></span><span>${admin.meta.label}</span>`;
-    nav.appendChild(a);
+    ADMIN_PAGES.forEach((p) => {
+      const a = document.createElement("a");
+      a.className = "nav-link";
+      a.href = `#${p.meta.id}`;
+      a.innerHTML = `<span class="nav-dot"></span><span>${p.meta.label}</span>`;
+      nav.appendChild(a);
+    });
   }
 }
 
@@ -82,15 +88,16 @@ function renderNoAccess() {
 function route() {
   const requested = (location.hash || "").slice(1);
 
-  if (requested === admin.meta.id && isAdmin) {
-    currentPage = admin;
-    setActive(admin.meta.id);
+  if (isAdmin && adminPagesById.has(requested)) {
+    const adminPage = adminPagesById.get(requested);
+    currentPage = adminPage;
+    setActive(adminPage.meta.id);
     const titleEl = document.getElementById("page-title");
     const subEl = document.getElementById("page-subtitle");
     document.getElementById("page-filters").innerHTML = "";
-    titleEl.textContent = admin.meta.label;
-    subEl.textContent = admin.meta.subtitle || "";
-    admin.render({ contentEl: document.getElementById("page-content"), sectionList: SECTION_LIST });
+    titleEl.textContent = adminPage.meta.label;
+    subEl.textContent = adminPage.meta.subtitle || "";
+    adminPage.render({ contentEl: document.getElementById("page-content"), sectionList: SECTION_LIST });
     return;
   }
 
@@ -98,7 +105,7 @@ function route() {
 
   if (!id) {
     if (isAdmin) {
-      history.replaceState(null, "", `#${admin.meta.id}`);
+      history.replaceState(null, "", `#${ADMIN_PAGES[0].meta.id}`);
       route();
       return;
     }

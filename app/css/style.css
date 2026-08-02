@@ -360,3 +360,20 @@ table.admin-table input[type="checkbox"] {
   width: 16px; height: 16px; accent-color: var(--brand-primary); cursor: pointer;
 }
 table.admin-table input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .4; }
+
+/* ---- Data refresh panel ---- */
+.refresh-file-input {
+  display: block; width: 100%; font-size: 12.5px; color: var(--text-secondary);
+  padding: 8px; border: 1px dashed var(--card-border); border-radius: 10px;
+  background: var(--page-plane); margin-top: 4px; cursor: pointer;
+}
+.refresh-preview { margin-top: 12px; }
+.refresh-summary {
+  font-size: 12.5px; color: var(--text-secondary); padding: 8px 0;
+  border-bottom: 1px solid var(--gridline);
+}
+.refresh-summary b { color: var(--text-primary); }
+.progress-wrap { margin: 12px 0; }
+.progress-track { height: 8px; background: var(--gridline); border-radius: 4px; overflow: hidden; }
+.progress-fill { height: 100%; width: 0%; background: var(--brand-primary); transition: width .25s ease; }
+.progress-label { font-size: 12px; color: var(--text-secondary); margin-top: 6px; }
