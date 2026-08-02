@@ -73,7 +73,7 @@ export function render({ db, contentEl }) {
   kpiCard(kpiRow, { label: "Avg Absence Hours / Employee (TTM)", value: fmtInt(avgAbsenceHours), note: `${fmtInt(absTTM.length)} logged absence events` });
   kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(leaveLiability), note: "Unused Annual balance × est. daily rate" });
 
-  noteBanner(contentEl, `<b>Scope note:</b> this is a local test build covering the 10 Phase-1 data-backed modules from the PRD. Executive Insights below summarizes headcount, hiring, attrition, and leave/absence trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
+  noteBanner(contentEl, `<b>Scope note:</b> this covers the 10 Phase-1 data-backed modules from the PRD. Executive Insights below summarizes headcount, hiring, attrition, and leave/absence trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
 
   const grid = document.createElement("div");
   grid.className = "grid-2";

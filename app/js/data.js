@@ -1,4 +1,4 @@
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
+import { getClient } from "./supabase-client.js";
 
 const TABLES = {
   employeeMaster: "employee_master",
@@ -40,10 +40,7 @@ async function fetchAllRows(client, table) {
 }
 
 export async function loadAll() {
-  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-    throw new Error("Supabase is not configured yet — fill in SUPABASE_URL and SUPABASE_ANON_KEY in app/js/supabase-config.js.");
-  }
-  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  const client = getClient();
 
   const entries = Object.entries(TABLES);
   const results = await Promise.all(entries.map(([, table]) => fetchAllRows(client, table)));

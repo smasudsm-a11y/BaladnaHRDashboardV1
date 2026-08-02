@@ -15,6 +15,28 @@
 </head>
 <body>
 <div id="loading">Loading HR data…</div>
+
+<div id="login-screen" style="display:none">
+  <div class="login-card">
+    <div class="brand-mark login-mark">B</div>
+    <h1>Baladna HR Analytics</h1>
+    <div class="login-sub">Sign in to view the dashboard</div>
+    <form id="login-form">
+      <label class="login-field">
+        <span>Email</span>
+        <input type="email" id="login-email" required autocomplete="username">
+      </label>
+      <label class="login-field">
+        <span>Password</span>
+        <input type="password" id="login-password" required autocomplete="current-password">
+      </label>
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <button type="submit" id="login-submit" class="login-submit">Sign In</button>
+    </form>
+    <div class="login-footnote">Access is managed by your Total Rewards / HRIS team. Contact them if you need an account.</div>
+  </div>
+</div>
+
 <div id="app" style="display:none">
   <aside class="sidebar">
     <div class="brand">
@@ -25,6 +47,10 @@
       </div>
     </div>
     <nav id="nav"></nav>
+    <div class="sidebar-footer">
+      <div class="user-email" id="user-email"></div>
+      <button class="logout-btn" id="logout-btn">Log out</button>
+    </div>
   </aside>
   <main class="main">
     <div class="topbar">
