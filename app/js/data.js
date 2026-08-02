@@ -1,26 +1,52 @@
-const FILES = {
-  employeeMaster: "data/employee_master.json",
-  orgHierarchy: "data/org_hierarchy.json",
-  recruitment: "data/recruitment.json",
-  diversity: "data/diversity.json",
-  attrition: "data/attrition.json",
-  baseSalary: "data/base_salary.json",
-  totalRewards: "data/total_rewards.json",
-  salaryStructure: "data/salary_structure.json",
-  leave: "data/leave.json",
-  absenteeism: "data/absenteeism.json",
-  performance: "data/performance.json",
-  training: "data/training.json",
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
+
+const TABLES = {
+  employeeMaster: "employee_master",
+  orgHierarchy: "org_hierarchy",
+  recruitment: "recruitment",
+  diversity: "diversity",
+  attrition: "attrition",
+  baseSalary: "base_salary",
+  totalRewards: "total_rewards",
+  salaryStructure: "salary_structure",
+  leave: "leave",
+  absenteeism: "absenteeism",
+  performance: "performance",
+  training: "training",
 };
 
+function toCamel(row) {
+  const out = {};
+  for (const [k, v] of Object.entries(row)) {
+    out[k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())] = v;
+  }
+  return out;
+}
+
+// Supabase/PostgREST caps a single request at 1000 rows by default — several of these
+// tables (absenteeism, leave, training…) are well past that, so page through in batches.
+async function fetchAllRows(client, table) {
+  const pageSize = 1000;
+  const all = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await client.from(table).select("*").range(from, from + pageSize - 1);
+    if (error) throw new Error(`Supabase query failed for "${table}": ${error.message}`);
+    all.push(...data);
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all.map(toCamel);
+}
+
 export async function loadAll() {
-  const entries = Object.entries(FILES);
-  const results = await Promise.all(
-    entries.map(([, path]) => fetch(path).then((r) => {
-      if (!r.ok) throw new Error(`Failed to load ${path}: ${r.status}`);
-      return r.json();
-    }))
-  );
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    throw new Error("Supabase is not configured yet — fill in SUPABASE_URL and SUPABASE_ANON_KEY in app/js/supabase-config.js.");
+  }
+  const client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  const entries = Object.entries(TABLES);
+  const results = await Promise.all(entries.map(([, table]) => fetchAllRows(client, table)));
   const db = {};
   entries.forEach(([key], i) => { db[key] = results[i]; });
 
@@ -129,7 +155,7 @@ export function fmtMoney(n, currency = "QAR") {
   return `${currency} ${Math.round(n).toLocaleString("en-US")}`;
 }
 
-export const REFERENCE_TODAY = "2026-07-30";
+export const REFERENCE_TODAY = "2026-08-02";
 
 export function lastNMonths(n, refDate = REFERENCE_TODAY) {
   const [ry, rm] = refDate.split("-").map(Number);
