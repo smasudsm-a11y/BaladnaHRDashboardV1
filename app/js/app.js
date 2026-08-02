@@ -1,6 +1,7 @@
 import { loadAll } from "./data.js";
 import { exportPageToPPTX } from "./export.js";
 import { signIn, signOut, onAuthStateChange } from "./auth.js";
+import { getUserAccess } from "./access.js";
 import * as exec from "./pages/executive.js";
 import * as headcount from "./pages/headcount.js";
 import * as recruitment from "./pages/recruitment.js";
@@ -25,16 +26,19 @@ NAV.forEach((g) => g.pages.forEach((p) => pagesById.set(p.meta.id, p)));
 
 let db = null;
 let currentPage = exec;
+let allowedIds = new Set();
 
-function buildNav() {
+function buildNav(allowed) {
   const nav = document.getElementById("nav");
   nav.innerHTML = "";
   NAV.forEach((g) => {
+    const visiblePages = g.pages.filter((p) => allowed.has(p.meta.id));
+    if (!visiblePages.length) return;
     const label = document.createElement("div");
     label.className = "nav-group-label";
     label.textContent = g.group;
     nav.appendChild(label);
-    g.pages.forEach((p) => {
+    visiblePages.forEach((p) => {
       const a = document.createElement("a");
       a.className = "nav-link";
       a.href = `#${p.meta.id}`;
@@ -50,9 +54,28 @@ function setActive(id) {
   });
 }
 
+function renderNoAccess() {
+  document.getElementById("page-title").textContent = "No dashboard access";
+  document.getElementById("page-subtitle").textContent = "";
+  document.getElementById("page-filters").innerHTML = "";
+  document.getElementById("page-content").innerHTML =
+    `<div class="note-banner"><b>Your account doesn't have any dashboard sections assigned yet.</b> Contact your administrator to request access.</div>`;
+}
+
 function route() {
-  const id = (location.hash || "#exec").slice(1);
-  const page = pagesById.get(id) || exec;
+  const requested = (location.hash || "").slice(1);
+  const id = allowedIds.has(requested) ? requested : (allowedIds.values().next().value || null);
+
+  if (!id) {
+    setActive(null);
+    renderNoAccess();
+    return;
+  }
+  if (id !== requested) {
+    history.replaceState(null, "", `#${id}`);
+  }
+
+  const page = pagesById.get(id);
   currentPage = page;
   setActive(page.meta.id);
 
@@ -105,6 +128,7 @@ function showLoading(text) {
 }
 
 function showLogin() {
+  allowedIds = new Set();
   document.getElementById("loading").style.display = "none";
   document.getElementById("app").style.display = "none";
   document.getElementById("login-screen").style.display = "flex";
@@ -114,7 +138,13 @@ function showLogin() {
 async function showApp(session) {
   showLoading("Loading HR data…");
   try {
-    db = await loadAll();
+    const access = await getUserAccess(session.user.id);
+    allowedIds = access.fullAccess
+      ? new Set(pagesById.keys())
+      : new Set(Array.from(pagesById.keys()).filter((id) => access.sections.includes(id)));
+    buildNav(allowedIds);
+
+    db = await loadAll(allowedIds);
     document.getElementById("user-email").textContent = session.user.email;
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("loading").style.display = "none";
@@ -159,7 +189,6 @@ function wireLogoutButton() {
 }
 
 async function main() {
-  buildNav();
   wireExportButton();
   wireLoginForm();
   wireLogoutButton();

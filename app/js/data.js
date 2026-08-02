@@ -15,6 +15,24 @@ const TABLES = {
   training: "training",
 };
 
+// Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
+// tables a given dashboard section actually reads from (directly or via
+// employeeIndex/latestBaseSalary/etc). Used to skip fetching tables the current
+// user has no section access to — RLS would return them empty anyway, but there's
+// no reason to pay for the round trip.
+const SECTION_TABLES = {
+  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary"],
+  headcount: ["employee_master", "org_hierarchy"],
+  recruitment: ["recruitment"],
+  newhires: ["employee_master"],
+  diversity: ["diversity", "recruitment", "attrition"],
+  compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
+  attrition: ["employee_master", "attrition"],
+  leave: ["leave", "absenteeism", "employee_master", "base_salary"],
+  performance: ["performance", "employee_master"],
+  training: ["training", "employee_master"],
+};
+
 function toCamel(row) {
   const out = {};
   for (const [k, v] of Object.entries(row)) {
@@ -39,11 +57,18 @@ async function fetchAllRows(client, table) {
   return all.map(toCamel);
 }
 
-export async function loadAll() {
+export async function loadAll(allowedIds) {
   const client = getClient();
 
+  const neededTables = new Set();
+  for (const id of allowedIds) {
+    (SECTION_TABLES[id] || []).forEach((t) => neededTables.add(t));
+  }
+
   const entries = Object.entries(TABLES);
-  const results = await Promise.all(entries.map(([, table]) => fetchAllRows(client, table)));
+  const results = await Promise.all(entries.map(([, table]) =>
+    neededTables.has(table) ? fetchAllRows(client, table) : Promise.resolve([])
+  ));
   const db = {};
   entries.forEach(([key], i) => { db[key] = results[i]; });
 
