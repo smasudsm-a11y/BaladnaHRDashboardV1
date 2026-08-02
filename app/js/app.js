@@ -12,6 +12,7 @@ import * as attrition from "./pages/attrition.js";
 import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
+import * as admin from "./pages/admin.js";
 
 const NAV = [
   { group: "Overview", pages: [exec] },
@@ -24,11 +25,15 @@ const NAV = [
 const pagesById = new Map();
 NAV.forEach((g) => g.pages.forEach((p) => pagesById.set(p.meta.id, p)));
 
+const SECTION_LIST = [];
+NAV.forEach((g) => g.pages.forEach((p) => SECTION_LIST.push({ id: p.meta.id, label: p.meta.label })));
+
 let db = null;
 let currentPage = exec;
 let allowedIds = new Set();
+let isAdmin = false;
 
-function buildNav(allowed) {
+function buildNav(allowed, showAdmin) {
   const nav = document.getElementById("nav");
   nav.innerHTML = "";
   NAV.forEach((g) => {
@@ -46,6 +51,18 @@ function buildNav(allowed) {
       nav.appendChild(a);
     });
   });
+
+  if (showAdmin) {
+    const label = document.createElement("div");
+    label.className = "nav-group-label";
+    label.textContent = "Admin";
+    nav.appendChild(label);
+    const a = document.createElement("a");
+    a.className = "nav-link";
+    a.href = `#${admin.meta.id}`;
+    a.innerHTML = `<span class="nav-dot"></span><span>${admin.meta.label}</span>`;
+    nav.appendChild(a);
+  }
 }
 
 function setActive(id) {
@@ -64,9 +81,27 @@ function renderNoAccess() {
 
 function route() {
   const requested = (location.hash || "").slice(1);
+
+  if (requested === admin.meta.id && isAdmin) {
+    currentPage = admin;
+    setActive(admin.meta.id);
+    const titleEl = document.getElementById("page-title");
+    const subEl = document.getElementById("page-subtitle");
+    document.getElementById("page-filters").innerHTML = "";
+    titleEl.textContent = admin.meta.label;
+    subEl.textContent = admin.meta.subtitle || "";
+    admin.render({ contentEl: document.getElementById("page-content"), sectionList: SECTION_LIST });
+    return;
+  }
+
   const id = allowedIds.has(requested) ? requested : (allowedIds.values().next().value || null);
 
   if (!id) {
+    if (isAdmin) {
+      history.replaceState(null, "", `#${admin.meta.id}`);
+      route();
+      return;
+    }
     setActive(null);
     renderNoAccess();
     return;
@@ -129,6 +164,7 @@ function showLoading(text) {
 
 function showLogin() {
   allowedIds = new Set();
+  isAdmin = false;
   document.getElementById("loading").style.display = "none";
   document.getElementById("app").style.display = "none";
   document.getElementById("login-screen").style.display = "flex";
@@ -142,7 +178,8 @@ async function showApp(session) {
     allowedIds = access.fullAccess
       ? new Set(pagesById.keys())
       : new Set(Array.from(pagesById.keys()).filter((id) => access.sections.includes(id)));
-    buildNav(allowedIds);
+    isAdmin = access.isAdmin;
+    buildNav(allowedIds, isAdmin);
 
     db = await loadAll(allowedIds);
     document.getElementById("user-email").textContent = session.user.email;
