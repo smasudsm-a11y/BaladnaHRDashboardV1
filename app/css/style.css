@@ -112,7 +112,24 @@ html, body {
   border-right: 1px solid var(--border);
   padding: 22px 14px;
   position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  display: flex; flex-direction: column;
 }
+.sidebar-footer {
+  margin-top: auto; padding: 14px 10px 4px;
+  border-top: 1px solid var(--border);
+}
+.user-email {
+  font-size: 11.5px; color: var(--text-muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-bottom: 8px;
+}
+.logout-btn {
+  width: 100%; font-size: 12.5px; font-weight: 600;
+  color: var(--text-secondary); background: var(--page-plane);
+  border: 1px solid var(--card-border); border-radius: var(--pill-radius);
+  padding: 7px 12px; cursor: pointer;
+}
+.logout-btn:hover { color: var(--text-primary); background: var(--brand-primary-soft); }
 .brand { display: flex; align-items: center; gap: 10px; padding: 4px 10px 22px; }
 .brand-mark {
   width: 34px; height: 34px; border-radius: 11px; flex-shrink: 0;
@@ -284,3 +301,45 @@ table.modal-table thead th { position: sticky; top: 0; background: var(--surface
 .detail-item { border-bottom: 1px solid var(--gridline); padding-bottom: 8px; }
 .detail-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 3px; }
 .detail-value { font-size: 13.5px; font-weight: 600; }
+
+/* ---- Login screen ---- */
+#login-screen {
+  min-height: 100vh; width: 100%;
+  align-items: center; justify-content: center;
+  background:
+    radial-gradient(1200px 500px at 50% 0%, var(--brand-primary-soft), transparent 60%),
+    var(--page-plane);
+  padding: 24px;
+}
+.login-card {
+  width: 100%; max-width: 380px;
+  background: var(--surface-1); border: 1px solid var(--card-border); border-radius: var(--card-radius);
+  box-shadow: var(--card-shadow);
+  padding: 32px 30px 26px;
+  text-align: center;
+}
+.login-mark { margin: 0 auto 14px; width: 44px; height: 44px; border-radius: 14px; font-size: 19px; }
+.login-card h1 { font-size: 18px; margin: 0 0 4px; }
+.login-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 22px; }
+.login-field {
+  display: flex; flex-direction: column; gap: 5px; text-align: left;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 14px;
+}
+.login-field input {
+  font: inherit; font-size: 14px; color: var(--text-primary);
+  padding: 9px 12px; border-radius: 10px; border: 1px solid var(--card-border);
+  background: var(--page-plane);
+}
+.login-field input:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+.login-error {
+  background: rgba(208, 59, 59, 0.1); color: var(--status-critical);
+  border-radius: 8px; padding: 8px 10px; font-size: 12.5px; margin-bottom: 14px; text-align: left;
+}
+.login-submit {
+  width: 100%; font: inherit; font-weight: 600; font-size: 14px;
+  color: #fff; background: var(--brand-primary); border: none;
+  border-radius: var(--pill-radius); padding: 10px; cursor: pointer;
+}
+.login-submit:hover { filter: brightness(1.06); }
+.login-submit:disabled { opacity: .65; cursor: default; }
+.login-footnote { font-size: 11px; color: var(--text-muted); margin-top: 18px; line-height: 1.5; }
