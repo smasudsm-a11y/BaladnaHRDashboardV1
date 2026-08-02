@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Baladna HR Analytics Dashboard Suite</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css">
+<script src="js/vendor/chart.umd.min.js"></script>
+<script src="js/vendor/xlsx.full.min.js"></script>
+<script src="js/vendor/pptxgen.bundle.js"></script>
+</head>
+<body>
+<div id="loading">Loading HR data…</div>
+<div id="app" style="display:none">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">B</div>
+      <div>
+        <div class="brand-title">Baladna HR Analytics</div>
+        <div class="brand-sub">Dashboard Suite — local test build</div>
+      </div>
+    </div>
+    <nav id="nav"></nav>
+  </aside>
+  <main class="main">
+    <div class="topbar">
+      <div class="topbar-row">
+        <div>
+          <h1 id="page-title">—</h1>
+          <div class="subtitle" id="page-subtitle"></div>
+        </div>
+        <button class="export-ppt-btn" id="export-ppt-btn" title="Export this tab to PowerPoint">Export tab to PPT</button>
+      </div>
+      <div class="filters" id="page-filters"></div>
+    </div>
+    <div class="content" id="page-content"></div>
+  </main>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

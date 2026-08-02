@@ -1,4 +1,6 @@
 .claude/
+.env.local
+.env
 ~$*.xlsx
 ~$*.docx
 ~$*.doc
