@@ -13,6 +13,8 @@ const TABLES = {
   absenteeism: "absenteeism",
   performance: "performance",
   training: "training",
+  excessHours: "excess_hours_violations",
+  article75: "article75_violations",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -31,6 +33,7 @@ const SECTION_TABLES = {
   leave: ["leave", "absenteeism", "employee_master", "base_salary"],
   performance: ["performance", "employee_master"],
   training: ["training", "employee_master"],
+  attendance: ["excess_hours_violations", "article75_violations"],
 };
 
 function toCamel(row) {
