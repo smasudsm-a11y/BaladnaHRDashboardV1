@@ -20,9 +20,11 @@ history" below for what exists and in what order it was added.
   `xlsx.full.min.js` (SheetJS — used for both Excel export AND reading uploaded
   workbooks), `pptxgen.bundle.js` (PptxGenJS), `supabase.min.js` (Supabase JS
   client v2, global `supabase.createClient`).
-- **Excel data source**: `Database/*.xlsx` (11 workbooks) is the original
+- **Excel data source**: `Database/*.xlsx` (12 workbooks) is the original
   authoring format Total Rewards edits monthly/weekly. `PRD/HR_Analytics_Dashboard_Suite_PRD.md`
-  is the product spec (converted from the original .docx).
+  is the product spec (converted from the original .docx). `12_Attendance_Violations.xlsx`
+  is synthetic-only (no real source workbook was ever committed) — see the
+  Attendance Violations gotcha below for why it's a separate population.
 - This folder is **OneDrive-synced**. OneDrive AutoSave can silently touch
   `Database/*.xlsx` files (re-serializes the file — calc-chain cache, etc. —
   with zero actual content change) just from Excel opening them, even
@@ -62,9 +64,13 @@ app/
                          builds nav from allowed sections + admin pages
     pages/
       executive.js, headcount.js, recruitment.js, newhires.js, diversity.js,
-      compensation.js, attrition.js, leave.js, performance.js, training.js
+      compensation.js, attrition.js, leave.js, performance.js, training.js,
+      attendance-violations.js
         — one file per dashboard section. Each exports `meta {id, label,
-          subtitle}` and `render({db, contentEl, filtersEl})`.
+          subtitle}` and `render({db, contentEl, filtersEl})`. attendance-
+          violations.js (id: "attendance") is the odd one out: its two tables
+          (excess_hours_violations, article75_violations) aren't joined to
+          employee_master at all — see gotcha below.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -93,13 +99,14 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
 2. **Section access** — `user_access` table: `full_access` (bool, sees
    everything) or `sections` (`text[]` of page ids: `exec`, `headcount`,
    `recruitment`, `newhires`, `diversity`, `compensation`, `attrition`,
-   `leave`, `performance`, `training`). Each of the 12 data tables has a
+   `leave`, `performance`, `training`, `attendance`). Each data table has a
    `"sectioned read"` RLS policy scoped to whichever sections legitimately
    read that table client-side (see the table-to-section map hardcoded in
-   both `data.js`'s `SECTION_TABLES` and `06_section_based_access.sql` —
-   keep these two in sync if either changes). Note: `exec` needs read access
-   to attrition/leave/absenteeism/base_salary too, since Executive Insights
-   aggregates those client-side — granting `exec` is broader than it looks.
+   both `data.js`'s `SECTION_TABLES` and `06_section_based_access.sql`/
+   `11_attendance_violations.sql` — keep these in sync if either changes).
+   Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
+   too, since Executive Insights aggregates those client-side — granting
+   `exec` is broader than it looks.
 3. **Admin** — `user_access.is_admin` (separate from `full_access` — an
    admin doesn't necessarily see all dashboard data, and a full-access viewer
    isn't necessarily an admin). Gates the "Admin" nav group (Manage Access +
@@ -125,6 +132,8 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
 9. `09_data_refresh.sql` — `data_refresh_log` + admin insert/delete on all 12 tables
 10. `10_employee_master_upsert.sql` — admin UPDATE policy on `employee_master`
     (**required** for the Data Refresh panel's Employee Master upload — see gotcha below)
+11. `11_attendance_violations.sql` — `excess_hours_violations` + `article75_violations`
+    tables, sectioned read + admin insert/delete policies for the `attendance` section
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -170,6 +179,23 @@ locally → verify on Render.
   requires it (the admin insert/delete policies from `09_data_refresh.sql`
   aren't enough). Trade-off: employee rows removed from the uploaded file are
   left in the DB, not deleted — other tables' history may still reference them.
+- **Attendance Violations is a separate employee population, not joined to
+  employee_master** — sourced from a real weekly "Attendance Violation Report"
+  (deck + workbook, outside this repo) covering ~1,769 operational/biometric-
+  tracked staff (Farms, Warehouses, Fleet, Retail field staff, etc.) — a
+  different HRIS process from the ~922-person corporate `employee_master`
+  population the rest of this dashboard is built on (different headcount,
+  different department taxonomy, no overlapping employee IDs). Both tables
+  are self-contained (employee name/dept/job baked into each row, like the
+  source report's own per-instance detail) — no `employeeId` FK, no join
+  through `db.employeeIndex`. `article75_violations` is weekly-count-only
+  by design: the source report never tracks individual Article 75 cases,
+  only a count, so there's no per-case detail to drill into (its chart card
+  uses `tableColumns`/`tableRows` instead of `drilldown`). The ~12 months of
+  historical data in `12_Attendance_Violations.xlsx` was synthesized to match
+  the real report's own weekly instance/employee/case-count trend (extracted
+  from the deck's embedded chart XML) — including its Jan–Apr spike — with
+  entirely fictional identities, not the real report's names/IDs.
 - Browser testing in this environment: the sandboxed browser pane doesn't
   reliably composite frames for screenshots/pixel-coordinate clicks (0×0
   viewport). Verify chart click-to-drill by mocking `chart.getElementsAtEventForMode`
@@ -186,3 +212,6 @@ locally → verify on Render.
 6. Added per-section database-enforced access control
 7. Added in-dashboard Admin panel for managing user access (checkboxes)
 8. Added Excel-to-Supabase Data Refresh panel with upload history log
+9. Fixed Employee Master refresh to upsert instead of delete+insert (FK conflicts)
+10. Added Attendance Violations module (Excess Hours + Article 75), a separate
+    operational-workforce population synthesized from a real weekly report

@@ -159,6 +159,26 @@ const UPLOAD_UNITS = [
       },
     }],
   },
+  {
+    id: "attendance_violations", fileLabel: "12 — Attendance Violations Dashboard",
+    sheets: [
+      {
+        sheetName: "Excess Hours Data", table: "excess_hours_violations", dateFields: ["violation_date"],
+        fields: {
+          "Employee ID": "employee_id", "Employee Name": "employee_name", "Job Title": "job_title",
+          "Division": "division", "Department": "department", "Section": "section",
+          "Violation Date": "violation_date", "Clock In": "clock_in", "Clock Out": "clock_out",
+          "Total Hours": "total_hours", "Manager Name": "manager_name",
+        },
+      },
+      {
+        sheetName: "Article 75 Data", table: "article75_violations", dateFields: ["week_start", "week_end"],
+        fields: {
+          "Week Start": "week_start", "Week End": "week_end", "Case Count": "case_count",
+        },
+      },
+    ],
+  },
 ];
 
 function toIsoDate(v) {

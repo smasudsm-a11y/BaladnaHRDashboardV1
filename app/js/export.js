@@ -13,6 +13,7 @@ const PRIORITY_FIELDS = [
   "sourceOfHire", "requisitionId", "recruitmentCost",
   "baseSalary", "totalCash", "totalRem", "compaRatio", "rangePenetration",
   "location", "manager", "hiringManager",
+  "jobTitle", "violationDate", "clockIn", "clockOut", "totalHours", "managerName", "weekStart", "caseCount",
 ];
 
 export function humanizeKey(key) {

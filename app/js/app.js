@@ -12,6 +12,7 @@ import * as attrition from "./pages/attrition.js";
 import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
+import * as attendanceViolations from "./pages/attendance-violations.js";
 import * as manageAccess from "./pages/admin.js";
 import * as dataRefresh from "./pages/data-refresh.js";
 
@@ -21,6 +22,7 @@ const NAV = [
   { group: "Workforce", pages: [headcount, diversity] },
   { group: "Rewards & Time", pages: [compensation, leave] },
   { group: "Performance & Growth", pages: [attrition, performance, training] },
+  { group: "Compliance", pages: [attendanceViolations] },
 ];
 
 const pagesById = new Map();
