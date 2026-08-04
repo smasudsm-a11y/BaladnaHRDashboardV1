@@ -7,18 +7,24 @@ function headcountAt(db, dateStr) {
   return db.employeeMaster.filter((e) => isActiveAsOf(e, dateStr)).length;
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export function render({ db, contentEl, filtersEl }) {
   const years = sortedUnique(db.attrition, (a) => a.terminationDate?.slice(0, 4)).sort();
   const yearOptions = ["All", ...years];
   const depts = ["All", ...sortedUnique(db.attrition, (a) => a.department)];
-  let year = "All", dept = "All";
+  let year = "All", month = "All", dept = "All";
 
   filterSelect(filtersEl, { label: "Year", options: yearOptions, value: year, onChange: (v) => { year = v; draw(); } });
+  filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = db.attrition.filter((a) => (year === "All" || a.terminationDate?.startsWith(year)) && (dept === "All" || a.department === dept));
+    const rows = db.attrition.filter((a) =>
+      (year === "All" || a.terminationDate?.startsWith(year)) &&
+      (month === "All" || Number(a.terminationDate?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
+      (dept === "All" || a.department === dept));
 
     const voluntary = rows.filter((a) => a.voluntaryInvoluntary === "Voluntary").length;
     const involuntary = rows.filter((a) => a.voluntaryInvoluntary === "Involuntary").length;
@@ -55,16 +61,18 @@ export function render({ db, contentEl, filtersEl }) {
     grid.className = "grid-2";
     contentEl.appendChild(grid);
 
-    const yearlyRate = years.map((y) => {
+    // Year + Department apply here (Month does not — a by-year trend can't be
+    // sub-divided by month within the same chart).
+    const yearlyRate = yearsInScope.map((y) => {
       const yr = db.attrition.filter((a) => a.terminationDate?.startsWith(y) && (dept === "All" || a.department === dept));
       const hc = (headcountAt(db, `${y}-01-01`) + headcountAt(db, `${y}-12-31`)) / 2 || 1;
       return (yr.length / hc) * 100;
     });
     const c1 = chartCard(grid, {
       title: "Attrition Rate Trend", sub: "Terminations ÷ average headcount, by year",
-      drilldown: { records: db.attrition.filter((a) => dept === "All" || a.department === dept), matchFn: (r, label) => r.terminationDate?.startsWith(label), db },
+      drilldown: { records: db.attrition.filter((a) => (year === "All" || a.terminationDate?.startsWith(year)) && (dept === "All" || a.department === dept)), matchFn: (r, label) => r.terminationDate?.startsWith(label), db },
     });
-    lineChart(c1, { labels: years, datasets: [{ label: "Attrition Rate %", data: yearlyRate.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+    lineChart(c1, { labels: yearsInScope, datasets: [{ label: "Attrition Rate %", data: yearlyRate.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
     const deptCounts = new Map();
     for (const a of rows) deptCounts.set(a.department, (deptCounts.get(a.department) || 0) + 1);

@@ -12,18 +12,23 @@ function ageBandOf(age) {
   return "55+";
 }
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const inMonth = (dateStr, month) => month === "All" || Number(dateStr?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month);
+
 export function render({ db, contentEl, filtersEl }) {
-  const years = ["All", ...sortedUnique(db.leave, (l) => l.leaveStartDate?.slice(0, 4)).sort()];
+  const realYears = sortedUnique(db.leave, (l) => l.leaveStartDate?.slice(0, 4)).sort();
+  const years = ["All", ...realYears];
   const bus = ["All", ...sortedUnique(db.leave, (l) => l.department)];
-  let year = "All", dept = "All";
+  let year = "All", month = "All", dept = "All";
 
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
+  filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: bus, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const leaveRows = db.leave.filter((l) => (year === "All" || l.leaveStartDate?.startsWith(year)) && (dept === "All" || l.department === dept) && l.leaveStatus === "Approved");
-    const absRows = db.absenteeism.filter((a) => (year === "All" || a.absenceDate?.startsWith(year)) && (dept === "All" || a.department === dept));
+    const leaveRows = db.leave.filter((l) => (year === "All" || l.leaveStartDate?.startsWith(year)) && inMonth(l.leaveStartDate, month) && (dept === "All" || l.department === dept) && l.leaveStatus === "Approved");
+    const absRows = db.absenteeism.filter((a) => (year === "All" || a.absenceDate?.startsWith(year)) && inMonth(a.absenceDate, month) && (dept === "All" || a.department === dept));
 
     const totalLeaveDays = leaveRows.reduce((s, l) => s + l.leaveDays, 0);
 
@@ -47,8 +52,9 @@ export function render({ db, contentEl, filtersEl }) {
 
     const headcount = dept === "All" ? db.employeeMaster.filter((e) => e.employmentStatus === "Active").length : db.employeeMaster.filter((e) => e.employmentStatus === "Active" && e.department === dept).length;
     const totalAbsenceHours = absRows.reduce((s, a) => s + a.absenceHours, 0);
-    const workingDaysInYear = year === "All" ? 260 * years.length : 260;
-    const scheduledHours = Math.max(1, headcount * workingDaysInYear * 8);
+    const yearsCount = year === "All" ? Math.max(1, realYears.length) : 1;
+    const workingDaysInPeriod = (month === "All" ? 260 : 260 / 12) * yearsCount;
+    const scheduledHours = Math.max(1, headcount * workingDaysInPeriod * 8);
     const absenceRate = (totalAbsenceHours / scheduledHours) * 100;
     const lostWorkdays = totalAbsenceHours / 8;
 

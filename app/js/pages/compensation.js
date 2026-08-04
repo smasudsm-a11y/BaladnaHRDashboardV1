@@ -76,21 +76,26 @@ export function render({ db, contentEl, filtersEl }) {
     const c2 = chartCard(grid, { title: "Salary Distribution", sub: "Base salary histogram (QAR, 5k bins)" });
     barChart(c2, { labels: binLabels, datasets: [{ label: "Employees", data: counts }], showLegend: false });
 
+    // Each breakdown chart respects the OTHER filter but not its own dimension
+    // (selecting a single Business Unit would otherwise collapse "by Business
+    // Unit" to one bar) — same convention as every other breakdown chart in the app.
+    const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
     const buOrder = sortedUnique(records, (r) => r.businessUnit).sort();
     const gapByBu = buOrder.map((b) => {
-      const m = avgBy(records.filter((r) => r.businessUnit === b && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(records.filter((r) => r.businessUnit === b && r.gender === "Female"), (r) => r.baseSalary);
+      const m = avgBy(levelFiltered.filter((r) => r.businessUnit === b && r.gender === "Male"), (r) => r.baseSalary);
+      const f = avgBy(levelFiltered.filter((r) => r.businessUnit === b && r.gender === "Female"), (r) => r.baseSalary);
       return m ? (f / m) * 100 : 0;
     });
-    const c3 = chartCard(grid, { title: "Pay Gap Index by Business Unit", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records, matchField: "businessUnit", db } });
+    const c3 = chartCard(grid, { title: "Pay Gap Index by Business Unit", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "businessUnit", db } });
     barChart(c3, { labels: buOrder, datasets: [{ label: "Pay Gap Index", data: gapByBu.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
+    const buFiltered = records.filter((r) => bu === "All" || r.businessUnit === bu);
     const gapByLevel = levels.slice(1).map((l) => {
-      const m = avgBy(records.filter((r) => r.jobLevel === l && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(records.filter((r) => r.jobLevel === l && r.gender === "Female"), (r) => r.baseSalary);
+      const m = avgBy(buFiltered.filter((r) => r.jobLevel === l && r.gender === "Male"), (r) => r.baseSalary);
+      const f = avgBy(buFiltered.filter((r) => r.jobLevel === l && r.gender === "Female"), (r) => r.baseSalary);
       return m ? (f / m) * 100 : 0;
     });
-    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records, matchField: "jobLevel", db } });
+    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records: buFiltered, matchField: "jobLevel", db } });
     barChart(c4, { labels: levels.slice(1), datasets: [{ label: "Pay Gap Index", data: gapByLevel.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
   }
 
