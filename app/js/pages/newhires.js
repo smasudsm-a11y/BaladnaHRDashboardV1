@@ -3,18 +3,31 @@ import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard } 
 
 export const meta = { id: "newhires", label: "New Hires & Onboarding", subtitle: "Who joined, and how they're distributed in their first year" };
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 function monthsSince(dateStr) {
   return daysBetween(dateStr, REFERENCE_TODAY) / 30.44;
 }
 
 export function render({ db, contentEl, filtersEl }) {
   const years = ["All", ...sortedUnique(db.employeeMaster, (e) => e.hireDate?.slice(0, 4)).sort()];
-  let year = "All";
+  const depts = ["All", ...sortedUnique(db.employeeMaster, (e) => e.department)];
+  let year = "All", month = "All", dept = "All";
   filterSelect(filtersEl, { label: "Hire Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
+  filterSelect(filtersEl, { label: "Hire Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
+  filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const starters = db.employeeMaster.filter((e) => e.hireDate && (year === "All" || e.hireDate.startsWith(year)));
+    // KPIs and breakdown charts: Hire Year + Hire Month + Department all apply.
+    const starters = db.employeeMaster.filter((e) => e.hireDate &&
+      (year === "All" || e.hireDate.startsWith(year)) &&
+      (month === "All" || Number(e.hireDate.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
+      (dept === "All" || e.department === dept));
+    // Trend chart: Year + Department apply, but not Month — a trend restricted
+    // to one month would collapse to a single point.
+    const trendStarters = db.employeeMaster.filter((e) => e.hireDate &&
+      (year === "All" || e.hireDate.startsWith(year)) && (dept === "All" || e.department === dept));
 
     const female = starters.filter((e) => e.gender === "Female").length;
     const retained6 = eligible(starters, 6);
@@ -42,8 +55,8 @@ export function render({ db, contentEl, filtersEl }) {
     grid.className = "grid-2";
     contentEl.appendChild(grid);
 
-    const months = sortedUnique(starters, (e) => e.hireDate.slice(0, 7)).sort();
-    const series = months.map((ym) => starters.filter((e) => e.hireDate.slice(0, 7) === ym).length);
+    const months = sortedUnique(trendStarters, (e) => e.hireDate.slice(0, 7)).sort();
+    const series = months.map((ym) => trendStarters.filter((e) => e.hireDate.slice(0, 7) === ym).length);
     const c1 = chartCard(grid, { title: "New Starters Trend", sub: "By hire month" });
     barChart(c1, { labels: months.map(monthLabel), datasets: [{ label: "New Starters", data: series }], showLegend: false });
 

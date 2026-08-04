@@ -3,18 +3,24 @@ import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../ch
 
 export const meta = { id: "training", label: "Learning & Training", subtitle: "Training investment, completion, and compliance" };
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export function render({ db, contentEl, filtersEl }) {
   const enriched = withEmployeeFields(db, db.training, ["businessUnit", "location"]);
   const years = ["All", ...sortedUnique(enriched, (t) => t.completionDate?.slice(0, 4)).sort()];
   const categories = ["All", ...sortedUnique(enriched, (t) => t.trainingCategory).sort()];
-  let year = "All", category = "All";
+  let year = "All", month = "All", category = "All";
 
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
+  filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Category", options: categories, value: category, onChange: (v) => { category = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = enriched.filter((t) => (year === "All" || t.completionDate?.startsWith(year)) && (category === "All" || t.trainingCategory === category));
+    const rows = enriched.filter((t) =>
+      (year === "All" || t.completionDate?.startsWith(year)) &&
+      (month === "All" || Number(t.completionDate?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
+      (category === "All" || t.trainingCategory === category));
 
     const totalHours = rows.reduce((s, t) => s + t.trainingHours, 0);
     const totalCost = rows.reduce((s, t) => s + t.trainingCost, 0);

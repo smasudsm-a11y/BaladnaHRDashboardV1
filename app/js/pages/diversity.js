@@ -62,9 +62,9 @@ export function render({ db, contentEl, filtersEl }) {
     contentEl.appendChild(grid2);
 
     const hiresGender = { Male: 0, Female: 0 };
-    for (const r of db.recruitment) if (r.joiningDate) hiresGender[r.candidateGender] = (hiresGender[r.candidateGender] || 0) + 1;
+    for (const r of db.recruitment) if (r.joiningDate && (grade === "All" || r.jobGrade === grade)) hiresGender[r.candidateGender] = (hiresGender[r.candidateGender] || 0) + 1;
     const exitsGender = { Male: 0, Female: 0 };
-    for (const a of db.attrition) exitsGender[a.gender] = (exitsGender[a.gender] || 0) + 1;
+    for (const a of db.attrition) if (grade === "All" || a.grade === grade) exitsGender[a.gender] = (exitsGender[a.gender] || 0) + 1;
     const c5 = chartCard(grid2, { title: "Workforce Flow by Gender", sub: "Hires-in vs. exits-out, all recorded history" });
     barChart(c5, {
       labels: ["Male", "Female"],

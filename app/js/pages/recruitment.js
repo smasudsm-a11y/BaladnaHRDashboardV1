@@ -3,19 +3,29 @@ import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } 
 
 export const meta = { id: "recruitment", label: "Recruitment", subtitle: "Requisition-to-hire funnel, cost, and source effectiveness" };
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
 export function render({ db, contentEl, filtersEl }) {
   const years = ["All", ...sortedUnique(db.recruitment, (r) => r.requisitionOpenDate?.slice(0, 4)).sort()];
   const depts = ["All", ...sortedUnique(db.recruitment, (r) => r.department)];
-  let year = "All", dept = "All";
+  let year = "All", month = "All", dept = "All";
 
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
+  filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
+    // KPIs and breakdown charts: Year + Month + Department all apply.
     const rows = db.recruitment.filter((r) =>
       (year === "All" || r.requisitionOpenDate?.startsWith(year)) &&
+      (month === "All" || Number(r.requisitionOpenDate?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
       (dept === "All" || r.department === dept)
+    );
+    // Monthly trend chart: Year + Department apply, but not Month — a trend
+    // restricted to one month would collapse to a single point.
+    const trendRows = db.recruitment.filter((r) =>
+      (year === "All" || r.requisitionOpenDate?.startsWith(year)) && (dept === "All" || r.department === dept)
     );
 
     const withOffer = rows.filter((r) => r.offerDate);
@@ -40,9 +50,11 @@ export function render({ db, contentEl, filtersEl }) {
     grid.className = "grid-2";
     contentEl.appendChild(grid);
 
-    const months = sortedUnique(rows, (r) => r.requisitionOpenDate?.slice(0, 7)).sort();
-    const ttoSeries = months.map((ym) => avgBy(withOffer.filter((r) => r.requisitionOpenDate?.slice(0, 7) === ym), (r) => daysBetween(r.requisitionOpenDate, r.offerDate)));
-    const tthSeries = months.map((ym) => avgBy(withJoin.filter((r) => r.interviewDate && r.requisitionOpenDate?.slice(0, 7) === ym), (r) => daysBetween(r.interviewDate, r.joiningDate)));
+    const trendWithOffer = trendRows.filter((r) => r.offerDate);
+    const trendWithJoin = trendRows.filter((r) => r.joiningDate);
+    const months = sortedUnique(trendRows, (r) => r.requisitionOpenDate?.slice(0, 7)).sort();
+    const ttoSeries = months.map((ym) => avgBy(trendWithOffer.filter((r) => r.requisitionOpenDate?.slice(0, 7) === ym), (r) => daysBetween(r.requisitionOpenDate, r.offerDate)));
+    const tthSeries = months.map((ym) => avgBy(trendWithJoin.filter((r) => r.interviewDate && r.requisitionOpenDate?.slice(0, 7) === ym), (r) => daysBetween(r.interviewDate, r.joiningDate)));
     const c1 = chartCard(grid, { title: "Time to Offer / Time to Hire", sub: "Average days, by requisition open month" });
     lineChart(c1, { labels: months.map(monthLabel), datasets: [{ label: "Time to Offer", data: ttoSeries.map((v) => Math.round(v)) }, { label: "Time to Hire", data: tthSeries.map((v) => Math.round(v)) }] });
 
