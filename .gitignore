@@ -6,3 +6,11 @@
 ~$*.doc
 ~$*.xls
 .~lock.*
+
+# Real, unpublished company financial data — the raw Finance source
+# workbooks this whole CTC pipeline was originally built from. Database/13_CTC_Report.xlsx
+# and scripts/ctc-data-extraction/*.csv have since been resynthesized (see
+# CLAUDE.md's CTC Report gotcha / build history) and are safe to commit — this
+# raw source folder never is, same reasoning as why Attendance Violations'
+# real source report was never committed either.
+/CTC/

@@ -179,6 +179,48 @@ const UPLOAD_UNITS = [
       },
     ],
   },
+  // The 4 CTC tables are 4 separate cards, not one bundled file — Finance
+  // uploads a new Actuals file every month, but Cost Centers/Budget/Revenue
+  // change rarely and on their own schedules. All 4 sheets still live in one
+  // workbook (Database/13_CTC_Report.xlsx) for the one-time historical load;
+  // each card below just reads its own sheet out of whatever file it's given.
+  {
+    id: "cost_centers", fileLabel: "13a — CTC Cost Centers",
+    sheets: [{
+      // Rarely changes; upserted by its own code so corrections never need a delete step.
+      sheetName: "Cost Centers Data", table: "cost_centers", dateFields: [],
+      upsertKey: "cost_center",
+      fields: { "Cost Center": "cost_center", "Division": "division", "Department": "department" },
+    }],
+  },
+  {
+    id: "ctc_actuals", fileLabel: "13b — CTC Actuals",
+    sheets: [{
+      // Real financial data that accumulates month by month — see 12_ctc_report.sql.
+      // Upsert key is composite (period+GL+cost center) so re-uploading a corrected
+      // month never touches any other month's rows, unlike a delete-then-insert table.
+      // This is the card the CTC Data Converter's output goes into, monthly.
+      sheetName: "CTC Actuals Data", table: "ctc_actuals", dateFields: ["period"],
+      upsertKey: "period,gl_code,cost_center",
+      fields: { "Period": "period", "GL Code": "gl_code", "GL Name": "gl_name", "FS Category": "fs_category", "Cost Center": "cost_center", "Amount": "amount" },
+    }],
+  },
+  {
+    id: "ctc_budget", fileLabel: "13c — CTC Budget",
+    sheets: [{
+      sheetName: "CTC Budget Data", table: "ctc_budget", dateFields: ["period"],
+      upsertKey: "period,gl_code,cost_center",
+      fields: { "Period": "period", "GL Code": "gl_code", "GL Name": "gl_name", "FS Category": "fs_category", "Cost Center": "cost_center", "Amount": "amount" },
+    }],
+  },
+  {
+    id: "ctc_revenue", fileLabel: "13d — CTC Revenue",
+    sheets: [{
+      sheetName: "CTC Revenue Data", table: "ctc_revenue", dateFields: ["period"],
+      upsertKey: "period",
+      fields: { "Period": "period", "Actual Revenue": "actual_revenue", "Budget Revenue": "budget_revenue" },
+    }],
+  },
 ];
 
 function toIsoDate(v) {
@@ -313,7 +355,7 @@ export function render({ contentEl }) {
     const anyReplace = parsed.some(({ spec }) => !spec.upsertKey);
     previewEl.innerHTML = `
       ${anyReplace ? `<div class="note-banner"><b>This will fully replace</b> the table(s) below — existing rows are deleted, then the parsed file's rows are inserted.</div>` : ""}
-      ${anyUpsert ? `<div class="note-banner"><b>This will update in place</b> — rows are matched by Employee ID and updated, new employees are added. Rows removed from the file are left untouched (not deleted), since other tables' history may still reference them.</div>` : ""}
+      ${anyUpsert ? `<div class="note-banner"><b>This will update in place</b> — existing rows are matched by their key and updated, new rows are added. Rows removed from the file are left untouched (not deleted), since other data may still reference them.</div>` : ""}
       ${summaries.map((s) => `
         <div class="refresh-summary">
           <b>${s.table}:</b> ${s.currentCount} current rows → ${s.newCount} rows in this file
