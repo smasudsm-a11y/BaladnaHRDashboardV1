@@ -13,8 +13,13 @@ import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
 import * as attendanceViolations from "./pages/attendance-violations.js";
+import * as ctcBudgetActual from "./pages/ctc-budget-actual.js";
+import * as ctcExpenseCategory from "./pages/ctc-expense-category.js";
+import * as ctcVarianceExplorer from "./pages/ctc-variance-explorer.js";
+import * as ctcYearOnYear from "./pages/ctc-year-on-year.js";
 import * as manageAccess from "./pages/admin.js";
 import * as dataRefresh from "./pages/data-refresh.js";
+import * as ctcConverter from "./pages/ctc-converter.js";
 
 const NAV = [
   { group: "Overview", pages: [exec] },
@@ -23,15 +28,27 @@ const NAV = [
   { group: "Rewards & Time", pages: [compensation, leave] },
   { group: "Performance & Growth", pages: [attrition, performance, training] },
   { group: "Compliance", pages: [attendanceViolations] },
+  { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
 ];
 
 const pagesById = new Map();
 NAV.forEach((g) => g.pages.forEach((p) => pagesById.set(p.meta.id, p)));
 
-const SECTION_LIST = [];
-NAV.forEach((g) => g.pages.forEach((p) => SECTION_LIST.push({ id: p.meta.id, label: p.meta.label })));
+// meta.section lets several pages share one access-control grant (e.g. the 4
+// CTC Report pages) — it defaults to meta.id, so every other page's existing
+// 1 page = 1 section behavior is unchanged.
+const sectionOf = (p) => p.meta.section || p.meta.id;
 
-const ADMIN_PAGES = [manageAccess, dataRefresh];
+const SECTION_LIST = [];
+const seenSections = new Set();
+NAV.forEach((g) => g.pages.forEach((p) => {
+  const id = sectionOf(p);
+  if (seenSections.has(id)) return;
+  seenSections.add(id);
+  SECTION_LIST.push({ id, label: p.meta.sectionLabel || p.meta.label });
+}));
+
+const ADMIN_PAGES = [manageAccess, dataRefresh, ctcConverter];
 const adminPagesById = new Map(ADMIN_PAGES.map((p) => [p.meta.id, p]));
 
 let db = null;
@@ -186,7 +203,7 @@ async function showApp(session) {
     const access = await getUserAccess(session.user.id);
     allowedIds = access.fullAccess
       ? new Set(pagesById.keys())
-      : new Set(Array.from(pagesById.keys()).filter((id) => access.sections.includes(id)));
+      : new Set(Array.from(pagesById.keys()).filter((id) => access.sections.includes(sectionOf(pagesById.get(id)))));
     isAdmin = access.isAdmin;
     buildNav(allowedIds, isAdmin);
 

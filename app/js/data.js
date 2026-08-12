@@ -15,6 +15,10 @@ const TABLES = {
   training: "training",
   excessHours: "excess_hours_violations",
   article75: "article75_violations",
+  costCenters: "cost_centers",
+  ctcActuals: "ctc_actuals",
+  ctcBudget: "ctc_budget",
+  ctcRevenue: "ctc_revenue",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -34,6 +38,10 @@ const SECTION_TABLES = {
   performance: ["performance", "employee_master"],
   training: ["training", "employee_master"],
   attendance: ["excess_hours_violations", "article75_violations"],
+  "ctc-budget-actual": ["cost_centers", "ctc_actuals", "ctc_budget", "ctc_revenue"],
+  "ctc-expense-category": ["cost_centers", "ctc_actuals", "ctc_budget"],
+  "ctc-variance-explorer": ["cost_centers", "ctc_actuals", "ctc_budget"],
+  "ctc-yoy": ["cost_centers", "ctc_actuals", "ctc_budget"],
 };
 
 function toCamel(row) {
@@ -78,6 +86,8 @@ export async function loadAll(allowedIds) {
   db.employeeIndex = new Map(db.employeeMaster.map((e) => [e.employeeId, e]));
 
   db.salaryStructureIndex = new Map(db.salaryStructure.map((s) => [s.grade, s]));
+
+  db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
 
   db.latestBaseSalary = latestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
   db.latestTotalRewards = latestByEmployee(db.totalRewards, "employeeId", "salaryEffectiveDate");
