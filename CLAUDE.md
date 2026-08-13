@@ -4,6 +4,40 @@ A static HTML/CSS/JS dashboard (no build step, no framework) reading live from
 Supabase, deployed as a Render Static Site. Built incrementally — see "Build
 history" below for what exists and in what order it was added.
 
+## Current status (2026-08-13) — read this first if resuming
+
+Mid-way through a phased plan to close gaps between this dashboard and a
+separate, much larger Power BI suite Group IT built for Power International
+Holding (the parent group Baladna sits under — that suite is Group-wide,
+multi-company; this app is Baladna-only, by explicit user decision, not an
+oversight). The comparison and phased plan aren't written down anywhere in
+this repo outside this note and git history — if you need the full page-by-
+page comparison again, it'd have to be redone from scratch, or ask the user
+for the original Power BI screenshots.
+
+**Done and merged** (Phases A, B, and C except Payroll):
+- Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
+  Pre/Post-Calibration ratings on Performance, Salary Positioning by Quartile
+  on Compensation.
+- Phase B: Retention Rate/Separation Type/Workforce Tenure on Attrition,
+  Vacancy Rate on Recruitment, Hires Above Mid % on New Hires, Total Completed
+  by Title + detail table on Training.
+- Phase C (partial): Staff/Labor `workforce_category` split (`14_workforce_category.sql`,
+  surfaced on Headcount + Leave's absenteeism KPIs), New Hire Program page
+  (`nhp.js`, reuses the `training` table).
+
+**Not started — Payroll Report** (Gross Salary, Deductions, Overtime, Air
+Ticket Cost, at monthly grain). Deliberately deferred, not forgotten: it needs
+a new data model decision (new table vs. extending `total_rewards`) bigger
+than anything else in this list, and was intentionally left for a fresh
+session with full context budget rather than rushed at the tail of a long one.
+Two explicit scope decisions already made, still valid if you pick this up:
+Baladna-only (no Group/Cluster/Company expansion), and no separate "CTC
+Details" page (that Power BI page's per-employee comp banding was folded into
+the existing Compensation page instead, not rebuilt separately). New Payroll
+data should be synthetic from day one (no real source to reconcile against),
+same philosophy as `workforce_category`/New Hire Program.
+
 ## Tech stack & constraints
 
 - **No Node.js or Python on the dev machine.** Everything is plain HTML/JS/CSS.
@@ -406,3 +440,9 @@ locally → verify on Render.
     corrected `ctc_budget`'s source after the real-data reconciliation
     surfaced division-level mismatches; resynthesized all 4 CTC tables'
     dollar figures and committed the module for the first time
+13. Closed most of the gap against Power International Holding's Group-wide
+    Power BI suite (Baladna-scoped): Legal Entity/Localization, salary
+    positioning by quartile, Pre/Post-Calibration ratings, Retention Rate,
+    Vacancy Rate, Hires Above Mid %, Workforce Tenure Distribution, a
+    Staff/Labor `workforce_category` split, and a New Hire Program page —
+    see "Current status" above for what's still open (Payroll Report)
