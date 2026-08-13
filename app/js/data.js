@@ -29,8 +29,8 @@ const TABLES = {
 const SECTION_TABLES = {
   exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary"],
   headcount: ["employee_master", "org_hierarchy"],
-  recruitment: ["recruitment"],
-  newhires: ["employee_master"],
+  recruitment: ["recruitment", "employee_master"],
+  newhires: ["employee_master", "base_salary", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
   attrition: ["employee_master", "attrition"],
@@ -91,6 +91,7 @@ export async function loadAll(allowedIds) {
 
   db.latestBaseSalary = latestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
   db.latestTotalRewards = latestByEmployee(db.totalRewards, "employeeId", "salaryEffectiveDate");
+  db.earliestBaseSalary = earliestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
 
   return db;
 }
@@ -102,6 +103,20 @@ export function latestByEmployee(rows, idField, dateField) {
     const d = row[dateField];
     const prev = best.get(key);
     if (!prev || (d && (!prev[dateField] || d > prev[dateField]))) best.set(key, row);
+  }
+  return best;
+}
+
+// Mirrors latestByEmployee, flipped to earliest — used for "at hire" comparisons
+// (e.g. starting salary vs. grade midpoint) where the latest record would answer
+// a different question (current pay, not what they were hired in at).
+export function earliestByEmployee(rows, idField, dateField) {
+  const best = new Map();
+  for (const row of rows) {
+    const key = row[idField];
+    const d = row[dateField];
+    const prev = best.get(key);
+    if (!prev || (d && (!prev[dateField] || d < prev[dateField]))) best.set(key, row);
   }
   return best;
 }

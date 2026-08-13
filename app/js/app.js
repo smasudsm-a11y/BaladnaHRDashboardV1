@@ -12,6 +12,7 @@ import * as attrition from "./pages/attrition.js";
 import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
+import * as nhp from "./pages/nhp.js";
 import * as attendanceViolations from "./pages/attendance-violations.js";
 import * as ctcBudgetActual from "./pages/ctc-budget-actual.js";
 import * as ctcExpenseCategory from "./pages/ctc-expense-category.js";
@@ -26,7 +27,7 @@ const NAV = [
   { group: "Talent Acquisition", pages: [recruitment, newhires] },
   { group: "Workforce", pages: [headcount, diversity] },
   { group: "Rewards & Time", pages: [compensation, leave] },
-  { group: "Performance & Growth", pages: [attrition, performance, training] },
+  { group: "Performance & Growth", pages: [attrition, performance, training, nhp] },
   { group: "Compliance", pages: [attendanceViolations] },
   { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
 ];

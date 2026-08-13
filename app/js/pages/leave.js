@@ -50,13 +50,23 @@ export function render({ db, contentEl, filtersEl }) {
       if (sal) liability += (l.leaveBalance || 0) * (sal.baseSalary / 30);
     }
 
-    const headcount = dept === "All" ? db.employeeMaster.filter((e) => e.employmentStatus === "Active").length : db.employeeMaster.filter((e) => e.employmentStatus === "Active" && e.department === dept).length;
     const totalAbsenceHours = absRows.reduce((s, a) => s + a.absenceHours, 0);
     const yearsCount = year === "All" ? Math.max(1, realYears.length) : 1;
     const workingDaysInPeriod = (month === "All" ? 260 : 260 / 12) * yearsCount;
-    const scheduledHours = Math.max(1, headcount * workingDaysInPeriod * 8);
-    const absenceRate = (totalAbsenceHours / scheduledHours) * 100;
     const lostWorkdays = totalAbsenceHours / 8;
+
+    // Split by workforce_category (Staff = white-collar/management tier, Labor =
+    // frontline/individual-contributor tier — see 14_workforce_category.sql),
+    // same framing as Power BI's separate Staff/Labor absenteeism KPIs.
+    const activeForRate = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept));
+    function absenceRateFor(category) {
+      const hc = activeForRate.filter((e) => e.workforceCategory === category).length;
+      const hours = absRows.filter((a) => db.employeeIndex.get(a.employeeId)?.workforceCategory === category).reduce((s, a) => s + a.absenceHours, 0);
+      const scheduled = Math.max(1, hc * workingDaysInPeriod * 8);
+      return (hours / scheduled) * 100;
+    }
+    const absenceRateStaff = absenceRateFor("Staff");
+    const absenceRateLabor = absenceRateFor("Labor");
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -64,7 +74,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Leave Days Taken", value: fmtInt(totalLeaveDays), note: "approved leave, selected period" });
     kpiCard(kpiRow, { label: "Avg Annual Leave Balance", value: fmtDec(avgBalance, 1), note: `days, across ${balances.length} employees` });
     kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(liability) });
-    kpiCard(kpiRow, { label: "Absence Rate", value: fmtPct(absenceRate), note: "absence hours ÷ est. scheduled hours" });
+    kpiCard(kpiRow, { label: "Absenteeism Rate — Staff", value: fmtPct(absenceRateStaff), note: "absence hours ÷ est. scheduled hours" });
+    kpiCard(kpiRow, { label: "Absenteeism Rate — Labor", value: fmtPct(absenceRateLabor), note: "absence hours ÷ est. scheduled hours" });
     kpiCard(kpiRow, { label: "Lost Workdays", value: fmtInt(lostWorkdays), note: `${fmtInt(totalAbsenceHours)} absence hours` });
 
     const grid = document.createElement("div");

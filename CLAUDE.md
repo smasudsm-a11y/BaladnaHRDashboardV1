@@ -76,6 +76,14 @@ app/
           violations.js (id: "attendance") is the odd one out: its two tables
           (excess_hours_violations, article75_violations) aren't joined to
           employee_master at all — see gotcha below.
+      nhp.js               "New Hire Program" — one row per participant in the
+                           SAME `training` table (training_category: "New
+                           Hire Program"), not a separate table or curriculum-
+                           item breakdown (Power BI's version tracks per-item
+                           detail; this schema has no field for that grain).
+                           `meta.section = "training"` — shares the Learning &
+                           Training access grant rather than needing its own,
+                           since it's the same underlying table.
       ctc-budget-actual.js, ctc-expense-category.js, ctc-variance-explorer.js,
       ctc-year-on-year.js
         — the "CTC Report" nav group (4 pages, synthetic financial data — see
@@ -137,11 +145,15 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    `"sectioned read"` RLS policy scoped to whichever sections legitimately
    read that table client-side (see the table-to-section map hardcoded in
    both `data.js`'s `SECTION_TABLES` and `06_section_based_access.sql`/
-   `11_attendance_violations.sql`/`12_ctc_report.sql` — keep these in sync if
-   any changes).
+   `11_attendance_violations.sql`/`12_ctc_report.sql`/`13_newhires_salary_access.sql`
+   — keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
-   `exec` is broader than it looks.
+   `exec` is broader than it looks. Same reasoning behind why `recruitment`
+   reads `employee_master` (Vacancy Rate needs active headcount) and
+   `newhires` reads `base_salary`/`salary_structure` (Hires Above Mid % needs
+   starting salary vs. grade midpoint) — a page's section grants read access
+   to every table its own charts touch, not just the table matching its name.
    `ctc` is the one section shared by more than one page id — `app.js`'s
    `pagesById` is still keyed by unique `meta.id` (routing needs that), but
    access-grant membership is checked via `meta.section || meta.id`, so the
@@ -179,6 +191,18 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
 12. `12_ctc_report.sql` — `cost_centers` + `ctc_actuals` + `ctc_budget` + `ctc_revenue`
     tables for the `ctc` section. All 4 are upserted, not delete+insert — needs
     admin UPDATE as well as insert/delete (see CTC Report gotcha below)
+13. `13_newhires_salary_access.sql` — widens `employee_master`'s sectioned-read
+    policy to include `recruitment`, and `base_salary`/`salary_structure`'s to
+    include `newhires` (**required** for Recruitment's Vacancy Rate and New
+    Hires' Hires Above Mid % KPIs — without this, a section-restricted, non-
+    full_access recruiter/new-hires user would see those KPIs silently come
+    back as 0%/n/a, since RLS would return those tables empty for them)
+14. `14_workforce_category.sql` — adds `employee_master.workforce_category`
+    (Staff/Labor), backfilled from `job_level`. **Required** for Headcount's
+    "Headcount by Employee Type" chart and Leave & Absence's split
+    Staff/Labor absenteeism KPIs — until this runs, both silently show 0%
+    (no error) since the column doesn't exist yet. No RLS change needed
+    (existing `employee_master` policy already covers every section that reads it).
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -201,6 +225,14 @@ locally → verify on Render.
 
 ## Known gotchas
 
+- **`employee_master.job_level` and `employee_master.workforce_category` both
+  have a value literally called `"Staff"`, meaning two unrelated things** —
+  `job_level` is the org-hierarchy tier (Staff/Supervisory/Managerial/Executive,
+  used by e.g. `headcount.js`'s "Headcount by Organisation Level"); `workforce_category`
+  is white-collar-vs-blue-collar (Staff/Labor, added in `14_workforce_category.sql`,
+  used by "Headcount by Employee Type" and Leave's split absenteeism KPIs). An
+  individual-contributor `job_level: "Staff"` row is very often
+  `workforce_category: "Labor"` — the two "Staff"s do not imply each other.
 - **"Auth session missing!" / getUser() returns null**: session expired or got
   invalidated by refresh-token rotation (common when many browser tabs share
   the same origin's localStorage and refresh concurrently during heavy
