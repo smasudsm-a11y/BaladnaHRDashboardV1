@@ -6,37 +6,33 @@ history" below for what exists and in what order it was added.
 
 ## Current status (2026-08-13) — read this first if resuming
 
-Mid-way through a phased plan to close gaps between this dashboard and a
-separate, much larger Power BI suite Group IT built for Power International
-Holding (the parent group Baladna sits under — that suite is Group-wide,
-multi-company; this app is Baladna-only, by explicit user decision, not an
-oversight). The comparison and phased plan aren't written down anywhere in
+The phased plan to close gaps between this dashboard and a separate, much
+larger Power BI suite Group IT built for Power International Holding (the
+parent group Baladna sits under — that suite is Group-wide, multi-company;
+this app is Baladna-only, by explicit user decision, not an oversight) is now
+**complete**. The comparison and phased plan aren't written down anywhere in
 this repo outside this note and git history — if you need the full page-by-
 page comparison again, it'd have to be redone from scratch, or ask the user
 for the original Power BI screenshots.
 
-**Done and merged** (Phases A, B, and C except Payroll):
+**Done and merged** (Phases A, B, C, and Payroll):
 - Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
   Pre/Post-Calibration ratings on Performance, Salary Positioning by Quartile
   on Compensation.
 - Phase B: Retention Rate/Separation Type/Workforce Tenure on Attrition,
   Vacancy Rate on Recruitment, Hires Above Mid % on New Hires, Total Completed
   by Title + detail table on Training.
-- Phase C (partial): Staff/Labor `workforce_category` split (`14_workforce_category.sql`,
+- Phase C: Staff/Labor `workforce_category` split (`14_workforce_category.sql`,
   surfaced on Headcount + Leave's absenteeism KPIs), New Hire Program page
   (`nhp.js`, reuses the `training` table).
-
-**Not started — Payroll Report** (Gross Salary, Deductions, Overtime, Air
-Ticket Cost, at monthly grain). Deliberately deferred, not forgotten: it needs
-a new data model decision (new table vs. extending `total_rewards`) bigger
-than anything else in this list, and was intentionally left for a fresh
-session with full context budget rather than rushed at the tail of a long one.
-Two explicit scope decisions already made, still valid if you pick this up:
-Baladna-only (no Group/Cluster/Company expansion), and no separate "CTC
-Details" page (that Power BI page's per-employee comp banding was folded into
-the existing Compensation page instead, not rebuilt separately). New Payroll
-data should be synthetic from day one (no real source to reconcile against),
-same philosophy as `workforce_category`/New Hire Program.
+- Payroll: new `payroll` table (`15_payroll.sql`) and `payroll.js` page —
+  monthly Gross Salary, Overtime, Deductions, Air Ticket Cost, Net Pay, by
+  Division/Department/Workforce Category — synthetic from day one, same
+  philosophy as `workforce_category`/New Hire Program, not the CTC Report
+  module's real-data-then-resynthesize approach. See the Payroll Report
+  gotcha below for the generation formulas. This was the last deferred item;
+  the two scope decisions noted in earlier revisions of this file (Baladna-
+  only, no separate "CTC Details" page) were honored throughout.
 
 ## Tech stack & constraints
 
@@ -56,14 +52,14 @@ same philosophy as `workforce_category`/New Hire Program.
   `xlsx.full.min.js` (SheetJS — used for both Excel export AND reading uploaded
   workbooks), `pptxgen.bundle.js` (PptxGenJS), `supabase.min.js` (Supabase JS
   client v2, global `supabase.createClient`).
-- **Excel data source**: `Database/*.xlsx` (13 workbooks) is the original
+- **Excel data source**: `Database/*.xlsx` (14 workbooks) is the original
   authoring format Total Rewards edits monthly/weekly. `PRD/HR_Analytics_Dashboard_Suite_PRD.md`
   is the product spec (converted from the original .docx). `12_Attendance_Violations.xlsx`
-  is synthetic-only (no real source workbook was ever committed) — see the
-  Attendance Violations gotcha below for why it's a separate population.
-  `13_CTC_Report.xlsx` started life as real, unpublished Finance data during
-  development and was resynthesized before ever being committed — see the
-  CTC Report gotcha below for how.
+  and `14_Payroll_Report.xlsx` are synthetic-only (no real source workbook was
+  ever committed for either) — see the Attendance Violations / Payroll Report
+  gotchas below for why/how. `13_CTC_Report.xlsx` started life as real,
+  unpublished Finance data during development and was resynthesized before
+  ever being committed — see the CTC Report gotcha below for how.
 - This folder is **OneDrive-synced**. OneDrive AutoSave can silently touch
   `Database/*.xlsx` files (re-serializes the file — calc-chain cache, etc. —
   with zero actual content change) just from Excel opening them, even
@@ -127,6 +123,17 @@ app/
           `db.ctcActuals`/`db.ctcBudget` rows to Division/Department via
           `db.costCenterIndex.get(row.costCenter)` client-side (no FK, no
           server-side join — same reasoning as employee_master/employeeIndex).
+      payroll.js           "Payroll Report" (own nav group, one page — the 4
+                           metrics don't need CTC Report's 4-page split).
+                           Synthetic monthly Gross Salary/Overtime/Deductions/
+                           Air Ticket Cost/Net Pay per employee, joined to
+                           Division/Department/Workforce Category via
+                           `db.employeeIndex` (DOES have an `employee_id` FK
+                           to employee_master, unlike ctc_actuals/cost_center
+                           — payroll is employee-level, so it follows
+                           base_salary's FK convention instead). See the
+                           Payroll Report gotcha below for the generation
+                           formulas.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -134,11 +141,13 @@ app/
                            parses client-side via SheetJS, preview then full
                            replace (delete+insert) per table, progress bar,
                            writes to data_refresh_log. id: "data-refresh".
-                           employee_master and the 4 CTC tables are upserted
-                           instead of delete+insert (see gotchas below) — the
-                           4 CTC tables are 4 separate upload cards (13a-13d),
-                           not one bundled file, since Actuals refreshes
-                           monthly but Cost Centers/Budget/Revenue don't.
+                           employee_master, the 4 CTC tables, and payroll are
+                           upserted instead of delete+insert (see gotchas
+                           below) — the 4 CTC tables are 4 separate upload
+                           cards (13a-13d), not one bundled file, since
+                           Actuals refreshes monthly but Cost Centers/Budget/
+                           Revenue don't. Payroll ("14 — Payroll Report") is
+                           its own card too, upserted by (employee_id, period).
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -156,9 +165,15 @@ scripts/
                          synthesize_ctc.ps1 (fabricates the $ figures — the
                          one script here that's still meaningful to re-run),
                          build_ctc_workbook.ps1 (CSVs -> Database/13_CTC_Report.xlsx)
+  payroll-data/         Payroll Report's one-time synthetic-from-scratch
+                         generator (see Payroll Report gotcha below):
+                         generate_payroll_data.ps1 (reads employee_master/
+                         base_salary/total_rewards CSVs -> payroll.csv,
+                         re-runnable but reshuffles all random draws),
+                         build_payroll_workbook.ps1 (CSV -> Database/14_Payroll_Report.xlsx)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 12 so far — see below)
+                         NUMBER ORDER (01 through 15 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
 serve.ps1               local static file server (see above)
@@ -175,11 +190,12 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
 2. **Section access** — `user_access` table: `full_access` (bool, sees
    everything) or `sections` (`text[]` of page ids: `exec`, `headcount`,
    `recruitment`, `newhires`, `diversity`, `compensation`, `attrition`,
-   `leave`, `performance`, `training`, `attendance`, `ctc`). Each data table has a
-   `"sectioned read"` RLS policy scoped to whichever sections legitimately
-   read that table client-side (see the table-to-section map hardcoded in
-   both `data.js`'s `SECTION_TABLES` and `06_section_based_access.sql`/
-   `11_attendance_violations.sql`/`12_ctc_report.sql`/`13_newhires_salary_access.sql`
+   `leave`, `performance`, `training`, `attendance`, `ctc`, `payroll`). Each
+   data table has a `"sectioned read"` RLS policy scoped to whichever
+   sections legitimately read that table client-side (see the table-to-section
+   map hardcoded in both `data.js`'s `SECTION_TABLES` and
+   `06_section_based_access.sql`/`11_attendance_violations.sql`/
+   `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`
    — keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
@@ -237,6 +253,11 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     Staff/Labor absenteeism KPIs — until this runs, both silently show 0%
     (no error) since the column doesn't exist yet. No RLS change needed
     (existing `employee_master` policy already covers every section that reads it).
+15. `15_payroll.sql` — new `payroll` table (Gross Salary, Overtime, Total
+    Deductions, Air Ticket Cost, Net Pay, monthly grain, FK to
+    `employee_master`) for the `payroll` section. Upserted by
+    `(employee_id, period)`, not delete+insert — needs admin UPDATE as well
+    as insert/delete (same reasoning as `ctc_actuals`/`ctc_budget`).
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -412,6 +433,48 @@ locally → verify on Render.
       sidesteps the whole date-object path — `toIsoDate()`'s plain-string
       fallback returns it completely unchanged. If you ever see a CTC period
       off by one day, this is almost certainly why.
+- **Payroll Report (`Database/14_Payroll_Report.xlsx`) is synthetic from day
+  one** — no real payroll source ever existed to reconcile against here,
+  same philosophy as Attendance Violations/New Hire Program, not the CTC
+  Report module's real-data-then-resynthesize approach. Generated by
+  `scripts/payroll-data/generate_payroll_data.ps1` (CSV out, reads
+  `supabase/csv/employee_master.csv`/`base_salary.csv`/`total_rewards.csv` —
+  no live Supabase access needed to regenerate) then
+  `build_payroll_workbook.ps1` (CSV → workbook, reusing `build_ctc_workbook.ps1`'s
+  `Write-SheetFromRows` helper verbatim, including its two gotchas: the
+  parenthesized multi-dim indexer `$arr[($r+1),$c]`, and writing the Period
+  column as Text (`NumberFormat = "@"`) *before* assignment to dodge the same
+  one-day-shift-on-read-back bug documented under CTC Report above).
+  One row per employee per **active** calendar month (gated by
+  `hire_date`/`termination_date`, not a flat month count per employee),
+  **Jan 2024 through Jun 2026** — deliberately matching `ctc_actuals`'
+  existing upper bound rather than inventing a new one, so every monthly-grain
+  financial module in this app sits on the same timeline. Per-employee/month
+  formulas (all fabricated, none reconciled against anything real):
+  - `gross_salary` = that employee's `base_salary` + `total_rewards`
+    allowances (housing+transport+education+other), using whichever
+    `salary_effective_date` row applies as of that month (latest effective
+    date `<=` the period, per employee), × ±2% monthly jitter.
+  - `overtime_amount` is tied to `workforce_category` (the Staff/Labor split
+    from `14_workforce_category.sql`, recomputed independently in PowerShell
+    from `job_level` since that migration's backfill isn't reflected in the
+    static CSV) — Labor gets a nonzero draw ~40% of months (500-3000 QAR),
+    Staff ~5% of months (200-800 QAR). A deliberate use of a distinction this
+    app already tracks, not an arbitrary split.
+  - `total_deductions` = `gross_salary` × random 1-4% every month, plus an
+    occasional (~10% of months) extra 5-10%-of-gross "loan deduction" spike.
+  - `air_ticket_cost`: expat employees (`nationality != "Qatari"`) get
+    exactly one nonzero month per year — their hire-anniversary month, so
+    it's deterministic per employee, not fully random — 1500-4000 QAR;
+    Qatari nationals always 0 (matches the real-world practice this line
+    item represents: an annual home-leave ticket allowance for expats only).
+  - `net_pay` = `gross_salary + overtime_amount - total_deductions`.
+    `air_ticket_cost` is a separate employer cost line, **not** netted into
+    pay — matches how Power BI treats it as its own KPI, not a payslip
+    deduction/addition.
+  Seeded into Supabase the same way every other table is: no one-off seed
+  script, just the "14 — Payroll Report" Data Refresh card once the
+  migration and workbook both exist.
 - Browser testing in this environment: the sandboxed browser pane doesn't
   reliably composite frames for screenshots/pixel-coordinate clicks (0×0
   viewport). Verify chart click-to-drill by mocking `chart.getElementsAtEventForMode`
@@ -444,5 +507,8 @@ locally → verify on Render.
     Power BI suite (Baladna-scoped): Legal Entity/Localization, salary
     positioning by quartile, Pre/Post-Calibration ratings, Retention Rate,
     Vacancy Rate, Hires Above Mid %, Workforce Tenure Distribution, a
-    Staff/Labor `workforce_category` split, and a New Hire Program page —
-    see "Current status" above for what's still open (Payroll Report)
+    Staff/Labor `workforce_category` split, and a New Hire Program page
+14. Added the Payroll Report module (own nav group): monthly Gross Salary,
+    Overtime, Deductions, Air Ticket Cost, and Net Pay per employee,
+    synthetic from day one — the last deferred item from the Power BI-parity
+    project, which this closes out entirely

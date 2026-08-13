@@ -18,6 +18,7 @@ import * as ctcBudgetActual from "./pages/ctc-budget-actual.js";
 import * as ctcExpenseCategory from "./pages/ctc-expense-category.js";
 import * as ctcVarianceExplorer from "./pages/ctc-variance-explorer.js";
 import * as ctcYearOnYear from "./pages/ctc-year-on-year.js";
+import * as payroll from "./pages/payroll.js";
 import * as manageAccess from "./pages/admin.js";
 import * as dataRefresh from "./pages/data-refresh.js";
 import * as ctcConverter from "./pages/ctc-converter.js";
@@ -30,6 +31,7 @@ const NAV = [
   { group: "Performance & Growth", pages: [attrition, performance, training, nhp] },
   { group: "Compliance", pages: [attendanceViolations] },
   { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
+  { group: "Payroll Report", pages: [payroll] },
 ];
 
 const pagesById = new Map();

@@ -222,6 +222,20 @@ const UPLOAD_UNITS = [
       fields: { "Period": "period", "Actual Revenue": "actual_revenue", "Budget Revenue": "budget_revenue" },
     }],
   },
+  {
+    id: "payroll", fileLabel: "14 — Payroll Report",
+    sheets: [{
+      // Synthetic, monthly-accumulating table — upserted by (employee_id,
+      // period) so a corrected month's re-upload never touches other months.
+      sheetName: "Payroll Data", table: "payroll", dateFields: ["period"],
+      upsertKey: "employee_id,period",
+      fields: {
+        "Employee ID": "employee_id", "Period": "period", "Gross Salary": "gross_salary",
+        "Overtime Amount": "overtime_amount", "Total Deductions": "total_deductions",
+        "Air Ticket Cost": "air_ticket_cost", "Net Pay": "net_pay",
+      },
+    }],
+  },
 ];
 
 function toIsoDate(v) {

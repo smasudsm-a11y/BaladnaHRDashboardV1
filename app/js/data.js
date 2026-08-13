@@ -19,6 +19,7 @@ const TABLES = {
   ctcActuals: "ctc_actuals",
   ctcBudget: "ctc_budget",
   ctcRevenue: "ctc_revenue",
+  payroll: "payroll",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -42,6 +43,7 @@ const SECTION_TABLES = {
   "ctc-expense-category": ["cost_centers", "ctc_actuals", "ctc_budget"],
   "ctc-variance-explorer": ["cost_centers", "ctc_actuals", "ctc_budget"],
   "ctc-yoy": ["cost_centers", "ctc_actuals", "ctc_budget"],
+  payroll: ["payroll", "employee_master"],
 };
 
 function toCamel(row) {
