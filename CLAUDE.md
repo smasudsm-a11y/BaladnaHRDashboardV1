@@ -34,6 +34,13 @@ for the original Power BI screenshots.
   the two scope decisions noted in earlier revisions of this file (Baladna-
   only, no separate "CTC Details" page) were honored throughout.
 
+**Also added, outside the Power BI-parity project**: Zee, an in-dashboard AI
+chat assistant (`app/js/zee.js` + the `zee-chat` Supabase Edge Function) —
+see the Zee gotcha below for its access-control design (deliberately has no
+database access at all) and the one manual Dashboard step it needs
+(`ANTHROPIC_API_KEY` secret) that isn't tracked anywhere else in this file's
+numbered migration list, since it's not a migration.
+
 ## Tech stack & constraints
 
 - **No Node.js or Python on the dev machine.** Everything is plain HTML/JS/CSS.
@@ -97,6 +104,15 @@ app/
     app.js               router: hash-based, gates everything behind auth +
                          per-section access (see "Access control model" below),
                          builds nav from allowed sections + admin pages
+    zee.js                Zee, the floating chat-assistant widget — mounted once
+                         via `initZeeWidget()` in app.js's `main()`, shown/hidden
+                         alongside the logged-in app shell (not visible on the
+                         login screen). `setPageContext()` is called by app.js's
+                         `route()` after every single page render (normal pages
+                         and admin pages alike) and re-derives its entire context
+                         from the DOM that page just rendered — see the Zee
+                         gotcha below for why that's also its whole access-control
+                         story.
     pages/
       executive.js, headcount.js, recruitment.js, newhires.js, diversity.js,
       compensation.js, attrition.js, leave.js, performance.js, training.js,
@@ -176,6 +192,16 @@ supabase/
                          NUMBER ORDER (01 through 15 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
+  functions/
+    zee-chat/index.ts   Zee's only backend piece — deployed manually via the
+                         Supabase Dashboard's Edge Functions editor (no Supabase
+                         CLI on this machine, same "do it via the Dashboard"
+                         convention as every SQL migration). Verifies the
+                         caller's session, wraps the browser-supplied page
+                         context in a system prompt, calls the Anthropic
+                         Messages API using the `ANTHROPIC_API_KEY` secret
+                         (Dashboard-only, never committed). See the Zee gotcha
+                         below — this function has NO Supabase table access.
 serve.ps1               local static file server (see above)
 ```
 
@@ -475,6 +501,43 @@ locally → verify on Render.
   Seeded into Supabase the same way every other table is: no one-off seed
   script, just the "14 — Payroll Report" Data Refresh card once the
   migration and workbook both exist.
+- **Zee (`app/js/zee.js` + `supabase/functions/zee-chat/index.ts`) has ZERO
+  database access by design** — this is deliberate, not an oversight, and is
+  what makes "Zee won't answer about modules you don't have access to" true
+  by construction rather than by a permission check that could have a bug.
+  The Edge Function only ever sees whatever `contextText` the browser sends
+  it (a plain-text dump of the KPI cards/charts/tables already rendered on
+  the CURRENT page, built by `zee.js`'s `buildPageContext()` purely from the
+  DOM) plus the user's question — it has no Supabase client wired to any HR
+  table, so there is no code path for it to go fetch anything else even if
+  asked to. `app.js`'s router already refuses to render any page outside a
+  user's `allowedIds`, so restricting Zee to "whatever's on screen right
+  now" automatically inherits that access control — do not "improve" this by
+  giving the Edge Function its own Supabase table access; that would defeat
+  the design. `setPageContext()` resets the conversation history on every
+  page change (Zee shouldn't carry Compensation-page context into a
+  Payroll-page conversation).
+  Requires one manual, one-time setup step outside this repo: create the
+  function via the Supabase Dashboard's Edge Functions editor (no Supabase
+  CLI on this machine) and set the `ANTHROPIC_API_KEY` secret there — the
+  user's own Anthropic API key, billed to their own account, and never
+  committed anywhere in this repo. If Zee responds with "Zee isn't
+  configured yet," that secret is missing or the function isn't deployed.
+  **The deployed function's actual name is `quick-handler`, not `zee-chat`**
+  — it was created under that name by mistake and Supabase doesn't support
+  renaming a function after creation, so `app/js/zee.js`'s `FUNCTION_URL`
+  points at `/functions/v1/quick-handler` instead of matching the source
+  file's own path (`supabase/functions/zee-chat/index.ts`). If Zee is ever
+  redeployed under its intended name, update that URL back to `zee-chat`.
+  No new migration/RLS needed — Zee doesn't touch `user_access` or any
+  section id at all.
+  Explicitly out of scope for the first pass (flagged, not silently
+  dropped): chat history isn't persisted anywhere (session-only, resets on
+  page change/reload — no `zee_chat_log` table), and there's no server-side
+  rate limiting on Anthropic usage (a client-side-only cap would be trivial
+  to bypass, so it wouldn't be real protection — a proper one needs a
+  per-user counter checked inside the Edge Function, not built here since
+  Anthropic billing is pay-per-token and this is a company-wide app).
 - Browser testing in this environment: the sandboxed browser pane doesn't
   reliably composite frames for screenshots/pixel-coordinate clicks (0×0
   viewport). Verify chart click-to-drill by mocking `chart.getElementsAtEventForMode`
@@ -512,3 +575,9 @@ locally → verify on Render.
     Overtime, Deductions, Air Ticket Cost, and Net Pay per employee,
     synthetic from day one — the last deferred item from the Power BI-parity
     project, which this closes out entirely
+15. Added Zee, a floating AI chat-assistant widget that answers questions
+    about whatever's currently on screen, backed by a new `zee-chat`
+    Supabase Edge Function (first use of Edge Functions in this project) that
+    proxies to the Anthropic API — designed with zero database access so its
+    access control is structural (only ever sees the current page's own
+    rendered data) rather than a permission check that could have a bug
