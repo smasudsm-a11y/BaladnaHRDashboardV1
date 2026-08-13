@@ -2,6 +2,7 @@ import { loadAll } from "./data.js";
 import { exportPageToPPTX } from "./export.js";
 import { signIn, signOut, onAuthStateChange } from "./auth.js";
 import { getUserAccess } from "./access.js";
+import { initZeeWidget, setPageContext, showZeeWidget, hideZeeWidget } from "./zee.js";
 import * as exec from "./pages/executive.js";
 import * as headcount from "./pages/headcount.js";
 import * as recruitment from "./pages/recruitment.js";
@@ -119,7 +120,9 @@ function route() {
     document.getElementById("page-filters").innerHTML = "";
     titleEl.textContent = adminPage.meta.label;
     subEl.textContent = adminPage.meta.subtitle || "";
-    adminPage.render({ contentEl: document.getElementById("page-content"), sectionList: SECTION_LIST });
+    const adminContentEl = document.getElementById("page-content");
+    adminPage.render({ contentEl: adminContentEl, sectionList: SECTION_LIST });
+    setPageContext(adminPage.meta.label, adminContentEl);
     return;
   }
 
@@ -159,6 +162,7 @@ function route() {
     filtersEl,
     setSubtitle: (t) => { subEl.textContent = t; },
   });
+  setPageContext(page.meta.label, contentEl);
 }
 
 function wireExportButton() {
@@ -194,6 +198,7 @@ function showLoading(text) {
 function showLogin() {
   allowedIds = new Set();
   isAdmin = false;
+  hideZeeWidget();
   document.getElementById("loading").style.display = "none";
   document.getElementById("app").style.display = "none";
   document.getElementById("login-screen").style.display = "flex";
@@ -215,6 +220,7 @@ async function showApp(session) {
     document.getElementById("login-screen").style.display = "none";
     document.getElementById("loading").style.display = "none";
     document.getElementById("app").style.display = "flex";
+    showZeeWidget();
     route();
   } catch (err) {
     showLoading(`Failed to load: ${err.message}`);
@@ -258,6 +264,7 @@ async function main() {
   wireExportButton();
   wireLoginForm();
   wireLogoutButton();
+  initZeeWidget();
   window.addEventListener("hashchange", route);
 
   let handledUserId = undefined; // undefined = not yet handled; null = handled as signed-out
