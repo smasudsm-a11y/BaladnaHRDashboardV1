@@ -36,6 +36,10 @@ export function render({ db, contentEl, filtersEl }) {
     const totalCost = rows.reduce((s, r) => s + (r.recruitmentCost || 0), 0);
     const openReqs = rows.filter((r) => !r.requisitionCloseDate).length;
     const filledReqs = rows.length - openReqs;
+    // Proxy definition (no separate "approved positions" concept in this data
+    // model): open requisitions as a share of active headcount + open requisitions.
+    const activeHC = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept)).length;
+    const vacancyRate = (activeHC + openReqs) ? (openReqs / (activeHC + openReqs)) * 100 : 0;
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -45,6 +49,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Offer Acceptance Rate", value: fmtPct(acceptanceRate), note: `${withJoin.length} joined of ${withOffer.length} offers` });
     kpiCard(kpiRow, { label: "Recruitment Cost", value: fmtMoney(totalCost), note: `${fmtMoney(rows.length ? totalCost / rows.length : 0)} avg / requisition` });
     kpiCard(kpiRow, { label: "Requisitions", value: fmtInt(rows.length), note: `${openReqs} open · ${filledReqs} filled` });
+    kpiCard(kpiRow, { label: "Vacancy Rate", value: fmtPct(vacancyRate), note: "open requisitions ÷ (active headcount + open requisitions)" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";

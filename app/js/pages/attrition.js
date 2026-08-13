@@ -1,5 +1,5 @@
 import { sortedUnique, sortGrades, isActiveAsOf, fmtInt, fmtPct } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, filterSelect } from "../charts.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "attrition", label: "Attrition & Retention", subtitle: "Voluntary and involuntary turnover, and termination profile" };
 
@@ -56,6 +56,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Voluntary Attrition Rate", value: fmtPct(voluntaryRate), note: `${voluntary} voluntary exits` });
     kpiCard(kpiRow, { label: "Involuntary Attrition Rate", value: fmtPct(involuntaryRate), note: `${involuntary} involuntary exits` });
     kpiCard(kpiRow, { label: "First-Year Attrition", value: fmtPct(firstYearPct), note: `${firstYear} left within 12 months of hire` });
+    kpiCard(kpiRow, { label: "Retention Rate", value: fmtPct(100 - overallRate), note: "100% − overall attrition rate" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -111,6 +112,26 @@ export function render({ db, contentEl, filtersEl }) {
     for (const a of rows) genderCounts[a.gender] = (genderCounts[a.gender] || 0) + 1;
     const c6 = chartCard(grid3, { title: "Terminations by Gender", drilldown: { records: rows, matchField: "gender", db } });
     barChart(c6, { labels: ["Male", "Female"], datasets: [{ label: "Terminations", data: [genderCounts.Male, genderCounts.Female] }], showLegend: false });
+
+    const grid4 = document.createElement("div");
+    grid4.className = "grid-2";
+    contentEl.appendChild(grid4);
+
+    const c7 = chartCard(grid4, { title: "Terminations by Separation Type", drilldown: { records: rows, matchField: "voluntaryInvoluntary", db } });
+    doughnutChart(c7, { labels: ["Voluntary", "Involuntary"], data: [voluntary, involuntary] });
+
+    // Current-state snapshot of the active workforce, not a termination trend —
+    // Department applies (same dimension as the rest of this page), Year/Month
+    // don't (there's no date to filter; this is "who's here today," not "who left when").
+    const activeForTenure = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept));
+    const tenureBands2 = ["0–1 yr", "1–2 yrs", "2–5 yrs", "5–8 yrs", "8+ yrs"];
+    const tenureBandOf2 = (t) => (t < 1 ? "0–1 yr" : t < 2 ? "1–2 yrs" : t < 5 ? "2–5 yrs" : t < 8 ? "5–8 yrs" : "8+ yrs");
+    const tenureCounts2 = tenureBands2.map((b) => activeForTenure.filter((e) => tenureBandOf2(e.lengthOfService || 0) === b).length);
+    const c8 = chartCard(grid4, {
+      title: "Workforce Tenure Distribution", sub: "Active employees, by years of service",
+      drilldown: { records: activeForTenure, matchFn: (r, label) => tenureBandOf2(r.lengthOfService || 0) === label, db },
+    });
+    barChart(c8, { labels: tenureBands2, datasets: [{ label: "Employees", data: tenureCounts2 }], showLegend: false });
   }
 
   draw();

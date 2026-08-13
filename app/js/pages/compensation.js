@@ -3,6 +3,20 @@ import { kpiCard, chartCard, barChart, bin, filterSelect } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
 
+// Fixed display order (not alphabetical) — always referenced directly as this
+// array, never re-sorted, so the bucket names themselves stay plain/unprefixed.
+const BUCKET_ORDER = ["Underpaid", "1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile", "Overpaid"];
+
+function positioningBucket(rangePenetration) {
+  if (rangePenetration === null) return null;
+  if (rangePenetration < 0) return "Underpaid";
+  if (rangePenetration < 25) return "1st Quartile";
+  if (rangePenetration < 50) return "2nd Quartile";
+  if (rangePenetration < 75) return "3rd Quartile";
+  if (rangePenetration <= 100) return "4th Quartile";
+  return "Overpaid";
+}
+
 function buildRecords(db) {
   const out = [];
   for (const [employeeId, sal] of db.latestBaseSalary) {
@@ -10,6 +24,7 @@ function buildRecords(db) {
     if (!e || e.employmentStatus !== "Active") continue;
     const tr = db.latestTotalRewards.get(employeeId);
     const struct = db.salaryStructureIndex.get(sal.grade);
+    const rangePenetration = struct ? ((sal.baseSalary - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null;
     out.push({
       employeeId,
       grade: sal.grade,
@@ -20,7 +35,8 @@ function buildRecords(db) {
       jobLevel: e.jobLevel,
       gender: e.gender,
       compaRatio: struct ? sal.baseSalary / struct.salaryMidpoint : null,
-      rangePenetration: struct ? ((sal.baseSalary - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null,
+      rangePenetration,
+      positioning: positioningBucket(rangePenetration),
     });
   }
   return out;
@@ -48,6 +64,7 @@ export function render({ db, contentEl, filtersEl }) {
     const avgFemale = avgBy(female, (r) => r.baseSalary);
     const payGapIndex = avgMale ? (avgFemale / avgMale) * 100 : 0;
     const totalCost = rows.reduce((s, r) => s + (r.totalRem || 0), 0);
+    const outsideRange = rows.filter((r) => r.positioning === "Underpaid" || r.positioning === "Overpaid").length;
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -61,6 +78,7 @@ export function render({ db, contentEl, filtersEl }) {
       deltaKind: payGapIndex < 95 ? "bad" : payGapIndex < 100 ? "warn" : "good",
     });
     kpiCard(kpiRow, { label: "Monthly Compensation Cost", value: fmtMoney(totalCost), note: "sum of total remuneration" });
+    kpiCard(kpiRow, { label: "Outside Salary Range", value: fmtPct(rows.length ? (outsideRange / rows.length) * 100 : 0), note: `${fmtInt(outsideRange)} underpaid or overpaid` });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -97,6 +115,10 @@ export function render({ db, contentEl, filtersEl }) {
     });
     const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records: buFiltered, matchField: "jobLevel", db } });
     barChart(c4, { labels: levels.slice(1), datasets: [{ label: "Pay Gap Index", data: gapByLevel.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+
+    const bucketCounts = BUCKET_ORDER.map((b) => rows.filter((r) => r.positioning === b).length);
+    const c5 = chartCard(grid, { title: "Salary Positioning by Quartile", sub: "Where base salary sits within its grade's range", drilldown: { records: rows, matchField: "positioning", db } });
+    barChart(c5, { labels: BUCKET_ORDER, datasets: [{ label: "Employees", data: bucketCounts }], showLegend: false });
   }
 
   draw();

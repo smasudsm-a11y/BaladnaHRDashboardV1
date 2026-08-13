@@ -5,13 +5,15 @@ export const meta = { id: "headcount", label: "Headcount & Workforce Profile", s
 
 export function render({ db, contentEl, filtersEl }) {
   const bus = ["All", ...sortedUnique(db.employeeMaster, (e) => e.businessUnit)];
-  let bu = "All";
+  const legalEntities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.legalEntity)];
+  let bu = "All", legalEntity = "All";
 
   filterSelect(filtersEl, { label: "Business Unit", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const em = db.employeeMaster.filter((e) => bu === "All" || e.businessUnit === bu);
+    const em = db.employeeMaster.filter((e) => (bu === "All" || e.businessUnit === bu) && (legalEntity === "All" || e.legalEntity === legalEntity));
     const active = em.filter((e) => e.employmentStatus === "Active");
     const months = lastNMonths(12);
 
@@ -86,6 +88,18 @@ export function render({ db, contentEl, filtersEl }) {
       ] },
     });
     barChart(c4, { labels: deptLabels, datasets: [{ label: "Avg direct reports", data: deptAvgSpan.map((v) => Math.round(v * 10) / 10) }], horizontal: true, showLegend: false });
+
+    const leOrder = sortedUnique(active, (e) => e.legalEntity).sort();
+    const leCounts = leOrder.map((le) => active.filter((e) => e.legalEntity === le).length);
+    const c5 = chartCard(grid, { title: "Headcount by Legal Entity", drilldown: { records: active, matchField: "legalEntity", db } });
+    barChart(c5, { labels: leOrder, datasets: [{ label: "Headcount", data: leCounts }], showLegend: false });
+
+    // "Staff" here means white-collar/management workforce_category, not the
+    // job_level tier of the same name used in c3 above — see 14_workforce_category.sql.
+    const wcOrder = ["Staff", "Labor"];
+    const wcCounts = wcOrder.map((c) => active.filter((e) => e.workforceCategory === c).length);
+    const c6 = chartCard(grid, { title: "Headcount by Employee Type", sub: "Staff vs. Labor", drilldown: { records: active, matchField: "workforceCategory", db } });
+    barChart(c6, { labels: wcOrder, datasets: [{ label: "Headcount", data: wcCounts }], showLegend: false });
   }
 
   draw();

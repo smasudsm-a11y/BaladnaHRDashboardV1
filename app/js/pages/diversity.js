@@ -1,16 +1,20 @@
-import { sortedUnique, sortGrades, fmtInt, fmtPct } from "../data.js";
-import { kpiCard, chartCard, barChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, withEmployeeFields, fmtInt, fmtPct } from "../data.js";
+import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "diversity", label: "Diversity & Inclusion", subtitle: "Workforce composition across gender, nationality, age, and leadership" };
 
 export function render({ db, contentEl, filtersEl }) {
-  const grades = ["All", ...sortGrades(sortedUnique(db.diversity, (d) => d.grade))];
-  let grade = "All";
+  // diversity has no legal_entity/employment_category of its own — joined in via employeeMaster.
+  const enriched = withEmployeeFields(db, db.diversity, ["legalEntity", "employmentCategory"]);
+  const grades = ["All", ...sortGrades(sortedUnique(enriched, (d) => d.grade))];
+  const legalEntities = ["All", ...sortedUnique(enriched, (d) => d.legalEntity)];
+  let grade = "All", legalEntity = "All";
   filterSelect(filtersEl, { label: "Grade", options: grades, value: grade, onChange: (v) => { grade = v; draw(); } });
+  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = db.diversity.filter((d) => grade === "All" || d.grade === grade);
+    const rows = enriched.filter((d) => (grade === "All" || d.grade === grade) && (legalEntity === "All" || d.legalEntity === legalEntity));
 
     const female = rows.filter((d) => d.gender === "Female").length;
     const femaleRatio = rows.length ? (female / rows.length) * 100 : 0;
@@ -18,6 +22,8 @@ export function render({ db, contentEl, filtersEl }) {
     const femaleLeaders = leaders.filter((d) => d.gender === "Female").length;
     const womenInLeadership = leaders.length ? (femaleLeaders / leaders.length) * 100 : 0;
     const nationalities = new Set(rows.map((d) => d.nationality)).size;
+    const local = rows.filter((d) => d.employmentCategory === "Local").length;
+    const localizationRate = rows.length ? (local / rows.length) * 100 : 0;
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -25,6 +31,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Female Ratio", value: fmtPct(femaleRatio), note: `${female} of ${rows.length} active employees` });
     kpiCard(kpiRow, { label: "Women in Leadership", value: fmtPct(womenInLeadership), note: `${femaleLeaders} of ${leaders.length} leaders` });
     kpiCard(kpiRow, { label: "Nationalities Represented", value: fmtInt(nationalities) });
+    kpiCard(kpiRow, { label: "Localization", value: fmtPct(localizationRate), note: `${fmtInt(local)} local nationals` });
     kpiCard(kpiRow, { label: "Active Headcount", value: fmtInt(rows.length) });
 
     const grid = document.createElement("div");
@@ -46,7 +53,7 @@ export function render({ db, contentEl, filtersEl }) {
     const c2 = chartCard(grid, { title: "Age Distribution", drilldown: { records: rows, matchField: "ageBand", db } });
     barChart(c2, { labels: ageBandOrder, datasets: [{ label: "Headcount", data: ageCounts }], showLegend: false });
 
-    const gradeOrder = sortGrades(sortedUnique(db.diversity, (d) => d.grade));
+    const gradeOrder = sortGrades(sortedUnique(enriched, (d) => d.grade));
     const maleByGrade = gradeOrder.map((g) => rows.filter((d) => d.grade === g && d.gender === "Male").length);
     const femaleByGrade = gradeOrder.map((g) => rows.filter((d) => d.grade === g && d.gender === "Female").length);
     const c3 = chartCard(grid, { title: "Diversity by Grade", sub: "Gender split across job grades", drilldown: { records: rows, matchField: "grade", datasetField: "gender", db } });
@@ -61,6 +68,9 @@ export function render({ db, contentEl, filtersEl }) {
     grid2.className = "grid-2";
     contentEl.appendChild(grid2);
 
+    // Grade filter only — recruitment (pre-hire candidates) and attrition have no
+    // legal_entity of their own, and no reliable employeeId join for recruitment
+    // (candidates aren't in employeeMaster until hired), so Legal Entity doesn't apply here.
     const hiresGender = { Male: 0, Female: 0 };
     for (const r of db.recruitment) if (r.joiningDate && (grade === "All" || r.jobGrade === grade)) hiresGender[r.candidateGender] = (hiresGender[r.candidateGender] || 0) + 1;
     const exitsGender = { Male: 0, Female: 0 };
@@ -70,6 +80,9 @@ export function render({ db, contentEl, filtersEl }) {
       labels: ["Male", "Female"],
       datasets: [{ label: "Hires In", data: [hiresGender.Male, hiresGender.Female] }, { label: "Exits Out", data: [exitsGender.Male, exitsGender.Female] }],
     });
+
+    const c6 = chartCard(grid2, { title: "Workforce by Employment Category", sub: "Local vs. Expatriate", drilldown: { records: rows, matchField: "employmentCategory", db } });
+    doughnutChart(c6, { labels: ["Local", "Expatriate"], data: [local, rows.length - local] });
   }
 
   draw();

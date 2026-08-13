@@ -6,7 +6,7 @@ export const meta = { id: "training", label: "Learning & Training", subtitle: "T
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.training, ["businessUnit", "location"]);
+  const enriched = withEmployeeFields(db, db.training, ["employeeName", "businessUnit", "location"]);
   const years = ["All", ...sortedUnique(enriched, (t) => t.completionDate?.slice(0, 4)).sort()];
   const categories = ["All", ...sortedUnique(enriched, (t) => t.trainingCategory).sort()];
   let year = "All", month = "All", category = "All";
@@ -68,6 +68,22 @@ export function render({ db, contentEl, filtersEl }) {
     const locLabels = Array.from(costByLoc.keys());
     const c4 = chartCard(grid, { title: "Training Cost by Location", drilldown: { records: rows, matchField: "location", db } });
     barChart(c4, { labels: locLabels, datasets: [{ label: "Cost (QAR)", data: locLabels.map((l) => Math.round(costByLoc.get(l))) }], horizontal: true, showLegend: false });
+
+    const completedRows = rows.filter((t) => t.completionStatus === "Completed");
+    const byTitle = new Map();
+    for (const t of completedRows) byTitle.set(t.courseName, (byTitle.get(t.courseName) || 0) + 1);
+    const titleOrder = Array.from(byTitle.keys()).sort((a, b) => byTitle.get(b) - byTitle.get(a)).slice(0, 10);
+    const c5 = chartCard(grid, {
+      title: "Total Completed by Title", sub: "Top 10 courses by completions",
+      drilldown: { records: completedRows, matchField: "courseName", db },
+      tableColumns: [
+        { key: "employeeName", label: "Employee" }, { key: "courseName", label: "Course" },
+        { key: "trainingCategory", label: "Category" }, { key: "trainingHours", label: "Hours", num: true },
+        { key: "completionStatus", label: "Status" }, { key: "completionDate", label: "Completion Date" },
+      ],
+      tableRows: rows,
+    });
+    barChart(c5, { labels: titleOrder, datasets: [{ label: "Completions", data: titleOrder.map((c) => byTitle.get(c)) }], horizontal: true, showLegend: false });
   }
 
   draw();

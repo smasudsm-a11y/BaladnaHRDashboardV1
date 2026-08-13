@@ -29,6 +29,7 @@ const UPLOAD_UNITS = [
         "Job Grade": "job_grade", "Job Level": "job_level", "Line Manager ID": "line_manager_id",
         "Line Manager Name": "line_manager_name", "Location": "location", "Country": "country",
         "City": "city", "Employment Category": "employment_category",
+        "Workforce Category": "workforce_category",
       },
     }],
   },

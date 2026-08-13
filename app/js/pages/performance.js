@@ -24,6 +24,10 @@ export function render({ db, contentEl, filtersEl }) {
     const avgGoal = rows.length ? rows.reduce((s, p) => s + p.goalScore, 0) / rows.length : 0;
     const avgComp = rows.length ? rows.reduce((s, p) => s + p.competencyScore, 0) / rows.length : 0;
     const promo = rows.filter((p) => p.promotionRecommendation === "Yes").length;
+    // overallRating is always the post-calibration value (identical to calibrationRating
+    // in every row) — managerRating is the pre-calibration input, so comparing the two
+    // directly gives the calibration-shift view without needing a separate field.
+    const adjusted = rows.filter((p) => p.managerRating !== p.overallRating).length;
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -33,6 +37,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Avg Goal Score", value: fmtDec(avgGoal, 2) });
     kpiCard(kpiRow, { label: "Avg Competency Score", value: fmtDec(avgComp, 2) });
     kpiCard(kpiRow, { label: "Promotion Recommendation Rate", value: fmtPct(rows.length ? (promo / rows.length) * 100 : 0), note: `${fmtInt(promo)} recommended` });
+    kpiCard(kpiRow, { label: "Ratings Adjusted in Calibration", value: fmtPct(rows.length ? (adjusted / rows.length) * 100 : 0), note: `${fmtInt(adjusted)} changed from manager's initial rating` });
 
     noteBanner(contentEl, `<b>Data gap flagged in PRD (§8.9):</b> the 9-Box Performance × Potential grid requires a "Potential" rating input that is not currently captured alongside Overall Rating. This page shows the Rating Distribution and departmental breakdown that <i>are</i> supported by current data; the 9-box view is omitted pending that data-capture gap being closed with HRIS.`);
 
@@ -69,6 +74,10 @@ export function render({ db, contentEl, filtersEl }) {
       return cr.length ? (cr.filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional").length / cr.length) * 100 : 0;
     });
     barChart(c4, { labels: cycleOrder, datasets: [{ label: "% High Performers", data: highSeries.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+
+    const preDist = RATING_ORDER.map((r) => rows.filter((p) => p.managerRating === r).length);
+    const c5 = chartCard(grid, { title: "Pre vs. Post-Calibration Ratings", sub: "Manager's initial rating vs. final calibrated rating" });
+    barChart(c5, { labels: RATING_ORDER, datasets: [{ label: "Manager Rating (Pre)", data: preDist }, { label: "Calibrated Rating (Post)", data: dist }] });
   }
 
   draw();

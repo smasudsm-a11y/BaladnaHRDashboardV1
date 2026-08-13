@@ -33,6 +33,19 @@ export function render({ db, contentEl, filtersEl }) {
     const retained6 = eligible(starters, 6);
     const retained12 = eligible(starters, 12);
 
+    // Starting salary vs. grade midpoint at hire (not current salary — that's
+    // what compensation.js's Compa-Ratio already covers). Only counts starters
+    // with a base_salary row on/near their hire date and a matching grade in
+    // salary_structure; starters missing either are excluded, not counted as "below."
+    const withHireSalary = starters
+      .map((e) => {
+        const sal = db.earliestBaseSalary.get(e.employeeId);
+        const struct = sal ? db.salaryStructureIndex.get(sal.grade) : null;
+        return struct ? sal.baseSalary > struct.salaryMidpoint : null;
+      })
+      .filter((v) => v !== null);
+    const aboveMid = withHireSalary.filter(Boolean).length;
+
     function eligible(rows, milestone) {
       const pool = rows.filter((e) => monthsSince(e.hireDate) >= milestone);
       if (!pool.length) return null;
@@ -50,6 +63,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "% Female New Starters", value: starters.length ? fmtPct((female / starters.length) * 100) : "—" });
     kpiCard(kpiRow, { label: "Retention @ 6mo", value: retained6 ? fmtPct(retained6.pct) : "n/a", note: retained6 ? `of ${retained6.n} eligible starters` : "no starters old enough yet" });
     kpiCard(kpiRow, { label: "Retention @ 12mo", value: retained12 ? fmtPct(retained12.pct) : "n/a", note: retained12 ? `of ${retained12.n} eligible starters` : "no starters old enough yet" });
+    kpiCard(kpiRow, { label: "Hires Above Mid %", value: withHireSalary.length ? fmtPct((aboveMid / withHireSalary.length) * 100) : "n/a", note: withHireSalary.length ? `${aboveMid} of ${withHireSalary.length} started above grade midpoint` : "no starting-salary data available" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
