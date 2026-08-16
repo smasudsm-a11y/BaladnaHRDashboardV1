@@ -27,7 +27,12 @@ instead of 18 — 18 went to H's `18_succession_planning.sql`); I and J
 likewise merged in sequence (I first, hence J's migration landing on 21
 instead of 20 — 20 went to I's `20_probation_pip.sql`). Phase K is now also
 done (migration 22 — no letter/number gap this time, since no other Round 2
-phase branch was in flight concurrently). Phase L remains.
+phase branch was in flight concurrently). **Phase L (migration 23) is now
+also done — Round 2 is complete.** It rolled Succession Coverage %,
+Employee Lifecycle Score, and a small Initiatives tracker onto Executive
+Insights; the "target lines on existing KPIs" part of its own plan turned
+out to already be satisfied by Phase G's `turnover_rate` targetDelta on
+Executive's "Attrition Rate (TTM)", so no further work was needed there.
 If you need the original screenshots again anyway (e.g.
 to re-verify a phase after it's built), ask the user — they aren't stored
 in this repo.
@@ -326,12 +331,29 @@ later phases depend on earlier ones' tables existing.
   periodically should only touch the periods/divisions in that upload, same
   reasoning as Payroll's `(employee_id, period)` key, not delete+insert like
   Succession Planning/Probation & PIP/eNPS's point-in-time roster snapshots.
-- **Phase L — Executive Insights rollup**: once H/J/G exist, go back to
-  Executive Insights and surface Succession Coverage %, Employee Lifecycle
-  Score, target lines on existing KPIs, and a new small Initiatives
-  tracker (name + status: Completed/In Progress/Overdue — the simplest item
-  on this whole list, a small new table with no dependencies). Deliberately
-  last since most of what it surfaces doesn't exist until earlier phases land.
+- **Phase L — done** (built 2026-08-16). Executive Insights rollup, the
+  last Round 2 phase (see `23_phase_l.sql`). No new tables for the first
+  two items — both are read-access widenings onto tables Phase H/J already
+  created: **Succession Coverage %** (named-successor positions / total
+  critical positions, same definition as `succession.js`'s own KPI) reads
+  `critical_positions`/`successors`; **Employee Lifecycle Score** (avg
+  across all 4 `stage_gate_scores` rows per employee, same definition as
+  `enps.js`'s own KPI) reads `stage_gate_scores`. Both needed `exec`
+  section RLS widenings on those 3 tables (`critical_positions`/
+  `successors`/`stage_gate_scores`'s own sectioned-read policies, not
+  `employee_master`'s — Executive doesn't need employee-level rows from
+  either module, just the aggregate counts/averages). **Target lines on
+  existing KPIs** turned out to need no new work: Phase G's
+  `turnover_rate` targetDelta on Executive's "Attrition Rate (TTM)" already
+  covers this — flagged here since the plan's own wording implied more
+  might be needed. **Initiatives tracker** (name + status:
+  Completed/In Progress/Overdue) is the one genuinely new table, exactly as
+  scoped — no dependencies, seeded with 8 invented sample initiatives
+  directly by the migration (same "no source workbook, upsert by natural
+  key" pattern as `kpi_targets`/`budgeted_positions`), rendered as a plain
+  table at the bottom of Executive Insights (no drilldown — there's no
+  employee/db-index tie for this table, unlike every other chart on the
+  page). New "20 — Initiatives" Data Refresh card, upserted by `name`.
 
 ## Tech stack & constraints
 
@@ -526,7 +548,10 @@ app/
                            bundle their own 2 sheets the same way.
                            Headcount Forecast ("19 — Headcount Forecast")
                            is upserted by (period, division), like Payroll,
-                           not delete+insert.
+                           not delete+insert. Initiatives ("20 —
+                           Initiatives") is upserted by name (its own
+                           natural key), same reasoning as KPI Targets'
+                           metric_id.
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -590,7 +615,7 @@ scripts/
                          Database/18_Headcount_Forecast.xlsx, 1 sheet)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 22 so far — see below)
+                         NUMBER ORDER (01 through 23 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -625,10 +650,11 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    `11_attendance_violations.sql`/`12_ctc_report.sql`/
    `13_newhires_salary_access.sql`/`15_payroll.sql`/`16_phase_d_access.sql`/
    `18_succession_planning.sql`/`19_phase_g.sql`/`20_probation_pip.sql`/
-   `21_enps.sql` — keep these in sync if any changes).
-   Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
-   too, since Executive Insights aggregates those client-side — granting
-   `exec` is broader than it looks. Same reasoning behind why `recruitment`
+   `21_enps.sql`/`23_phase_l.sql` — keep these in sync if any changes).
+   Note: `exec` needs read access to attrition/leave/absenteeism/base_salary/
+   critical_positions/successors/stage_gate_scores too, since Executive
+   Insights aggregates all of those client-side — granting `exec` is
+   broader than it looks. Same reasoning behind why `recruitment`
    reads `employee_master` (Vacancy Rate needs active headcount) and
    `newhires` reads `base_salary`/`salary_structure` (Hires Above Mid % needs
    starting salary vs. grade midpoint) — a page's section grants read access
@@ -754,6 +780,17 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     CLAUDE.md's Phase K writeup above for why. See the "19 — Headcount
     Forecast" Data Refresh card and `scripts/headcount-forecast-data/` for
     the synthetic forecast series.
+23. `23_phase_l.sql` — Power BI Parity Round 2, Phase L (the last Round 2
+    phase): widens `critical_positions`/`successors`/`stage_gate_scores`'
+    sectioned-read policies to include `exec` (Executive's new Succession
+    Coverage % and Employee Lifecycle Score KPIs read those 3 tables
+    directly — no `employee_master` widening needed this time, since
+    Executive only needs the aggregate counts/averages, not employee-level
+    rows). Also creates the new `initiatives` table (sectioned read for
+    `exec` only, admin insert/update/delete, upserted by `name`), seeded
+    with 8 invented sample rows by the migration itself. See CLAUDE.md's
+    Phase L writeup above for why "target lines on existing KPIs" needed no
+    further work.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -1254,9 +1291,15 @@ locally → verify on Render.
     a reproduced early-termination signal so it has no dependency on Phase
     I's branch — I and J were likewise both built in their own parallel
     sessions and merged in sequence, I first, hence J's migration landing
-    on 21 instead of 20), and Phase K (Headcount Forecast, a new module and
+    on 21 instead of 20), Phase K (Headcount Forecast, a new module and
     nav group — one new table, `headcount_forecast`, holding only the
     forward-looking Forecast/Lower/Upper series since Actual headcount is
     already computable live from `employee_master`; each division's
     forecast growth rate is that division's own real trailing-12-month net
-    change, not a random draw) — see "Power BI Parity — Round 2" above
+    change, not a random draw), and Phase L (Executive Insights rollup, the
+    last Round 2 phase — Succession Coverage % and Employee Lifecycle Score
+    added to Executive via read-access widenings onto Phase H/J's existing
+    tables, no new tables for either; a small new `initiatives` table for
+    the Initiatives tracker, the only genuinely new table this phase
+    needed) — see "Power BI Parity — Round 2" above. Round 2 is now
+    complete.

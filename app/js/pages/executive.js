@@ -1,5 +1,5 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, fmtInt, fmtPct, fmtMoney, targetDelta, REFERENCE_TODAY } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, doughnutChart, noteBanner } from "../charts.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, noteBanner } from "../charts.js";
 
 export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leadership at-a-glance across the employee lifecycle" };
 
@@ -52,6 +52,16 @@ export function render({ db, contentEl }) {
     if (sal) leaveLiability += (row.leaveBalance || 0) * (sal.baseSalary / 30);
   }
 
+  // Succession Coverage % (Phase L rollup) — same definition as
+  // succession.js's own KPI: named-successor positions / total critical
+  // positions.
+  const positionsWithSuccessor = new Set(db.successors.map((s) => s.positionId)).size;
+  const successionCoveragePct = db.criticalPositions.length ? (positionsWithSuccessor / db.criticalPositions.length) * 100 : 0;
+
+  // Employee Lifecycle Score (Phase L rollup) — same avg-across-4-stages
+  // definition as enps.js's own KPI.
+  const lifecycleScore = db.stageGateScores.length ? db.stageGateScores.reduce((s, r) => s + (r.score || 0), 0) / db.stageGateScores.length : 0;
+
   const kpiRow = document.createElement("div");
   kpiRow.className = "kpi-row";
   contentEl.appendChild(kpiRow);
@@ -72,6 +82,8 @@ export function render({ db, contentEl }) {
   });
   kpiCard(kpiRow, { label: "Avg Absence Hours / Employee (TTM)", value: fmtInt(avgAbsenceHours), note: `${fmtInt(absTTM.length)} logged absence events` });
   kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(leaveLiability), note: "Unused Annual balance × est. daily rate" });
+  kpiCard(kpiRow, { label: "Succession Coverage", value: fmtPct(successionCoveragePct), note: `${positionsWithSuccessor} of ${db.criticalPositions.length} critical roles` });
+  kpiCard(kpiRow, { label: "Employee Lifecycle Score", value: fmtDec(lifecycleScore, 1), note: "avg across Interview → Probation stages" });
 
   noteBanner(contentEl, `<b>Scope note:</b> this covers the 10 Phase-1 data-backed modules from the PRD. Executive Insights below summarizes headcount, hiring, attrition, and leave/absence trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
 
@@ -120,4 +132,17 @@ export function render({ db, contentEl }) {
   const ltLabels = Array.from(leaveByType.keys());
   const c6 = chartCard(grid3, { title: "Leave Days Taken (TTM)", sub: "Approved leave, by type", drilldown: { records: leaveTTM, matchField: "leaveType", db } });
   barChart(c6, { labels: ltLabels, datasets: [{ label: "Days", data: ltLabels.map((t) => Math.round(leaveByType.get(t))) }], showLegend: false });
+
+  // Initiatives tracker (Phase L rollup) — the one genuinely new table this
+  // phase adds, no dependencies on any other module.
+  const initiatives = db.initiatives.slice().sort((a, b) => a.id - b.id);
+  const completedCount = initiatives.filter((i) => i.status === "Completed").length;
+  const inProgressCount = initiatives.filter((i) => i.status === "In Progress").length;
+  const overdueCount = initiatives.filter((i) => i.status === "Overdue").length;
+  tableCard(contentEl, {
+    title: "HR Initiatives",
+    sub: `${completedCount} completed · ${inProgressCount} in progress · ${overdueCount} overdue`,
+    columns: [{ key: "name", label: "Initiative" }, { key: "status", label: "Status" }],
+    rows: initiatives,
+  });
 }
