@@ -101,6 +101,36 @@ later phases depend on earlier ones' tables existing.
   no `data.js`/RLS changes at all, since any user granted `compensation`
   already has the `compensation` page id in `allowedIds`, whose own
   `SECTION_TABLES` entry already fetches everything this page reads.
+  **Revisited 2026-08-16 (later)** after the user compared this page
+  directly against the Power BI "Underpaid and Overpaid Analysis Report"
+  screenshot and flagged it as "not matching." Investigation found the
+  gap was structural, not numeric — the user's own call was that data
+  values don't need to reconcile (this app's compensation data is
+  synthetic and the real report's is Group-wide besides), only that the
+  page's set of visuals should mirror the real report's. Added 4 charts to
+  close that gap: **Count/% By Quartiles** (a 6-bucket bar — Underpaid/1st–
+  4th Quartile/Overpaid — reusing `compensation.js`'s own
+  `positioningBucket` logic, duplicated locally per this app's page-local-helper
+  convention, not imported) and **Employees by Category** (a 3-way
+  Within/Underpaid/Overpaid donut) match the report's overview visuals
+  exactly. **Salary Positioning by Business Unit** (a 3-way stacked % bar)
+  and **Underpaid/Overpaid Employees by Business Unit** substitute
+  Business Unit for the report's "by Group/Cluster/Company" breakdowns,
+  since this app is Baladna-only with no Group/Cluster concept in its
+  schema — the same substitution this app makes everywhere its data model
+  has no literal Group-wide equivalent (e.g. workforce_category for
+  Staff/Labor). All "by Business Unit" charts respect the page's Org Level
+  filter but not its own Business Unit filter, same convention as
+  `compensation.js`'s existing "by Business Unit" charts. Also flagged,
+  not fixed (explicit user decision, 2026-08-16): `salary_structure`'s
+  min/mid/max ranges are stale relative to 3 years of compounding raises
+  in `base_salary` — every one of the 14 grades' actual latest-salary
+  average sits above its own structure midpoint, producing an unrealistic
+  0% underpaid / ~35% overpaid split (vs. the real report's ~3%/~2%,
+  ~94% within-range) — a pre-existing calibration issue baked into the
+  very first data build (predates Round 1 and Round 2 entirely), not
+  something introduced by this phase. Left as-is since the user judged the
+  underlying numbers don't need to reconcile.
 - **Phase F — done** (built 2026-08-16, in parallel with Phase E above, out
   of build order but landed the same day — the user asked for F
   specifically ahead of E). Modest schema additions, all in
@@ -448,7 +478,13 @@ app/
                            (0–9%/10–19%/20–29%/30–39%/40%+) $ shortfall and
                            excess vs. grade min/max, reusing the exact same
                            `base_salary`/`salary_structure` join Compensation's
-                           quartile chart already does. `meta.section =
+                           quartile chart already does. Also has a
+                           Count/% By Quartiles chart and an Employees by
+                           Category donut (Within/Underpaid/Overpaid),
+                           plus Salary Positioning/Underpaid/Overpaid by
+                           Business Unit — Business Unit substitutes for
+                           the Power BI report's Group/Cluster/Company
+                           breakdowns, this app being Baladna-only. `meta.section =
                            "compensation"` — shares that access grant and
                            needs no `SECTION_TABLES` entry of its own (see the
                            comment at the top of the file for why).
