@@ -1,5 +1,5 @@
-import { sortedUnique, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, barChart, filterSelect } from "../charts.js";
+import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { kpiCard, chartCard, barChart, lineChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "leave", label: "Leave & Absence", subtitle: "Leave utilization, liability, and absenteeism" };
 
@@ -68,6 +68,18 @@ export function render({ db, contentEl, filtersEl }) {
     const absenceRateStaff = absenceRateFor("Staff");
     const absenceRateLabor = absenceRateFor("Labor");
 
+    // "Total Working Days" = active headcount x est. scheduled working days in the
+    // selected period (the same 260-days/year assumption already used above for
+    // the absenteeism rate denominator, just expressed as a company-wide total
+    // rather than a per-employee figure). "Days till YTD" = calendar days elapsed
+    // from Jan 1 of the effective year through the selected month (or through
+    // REFERENCE_TODAY if no month is selected) — how far into the year this
+    // period's numbers reach.
+    const totalWorkingDays = activeForRate.length * workingDaysInPeriod;
+    const effectiveYear = year !== "All" ? year : REFERENCE_TODAY.slice(0, 4);
+    const ytdCutoff = month !== "All" ? monthEnd(`${effectiveYear}-${String(MONTH_NAMES.indexOf(month) + 1).padStart(2, "0")}`) : REFERENCE_TODAY;
+    const daysTillYTD = Math.max(0, Math.round(daysBetween(`${effectiveYear}-01-01`, ytdCutoff)));
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -77,6 +89,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Absenteeism Rate — Staff", value: fmtPct(absenceRateStaff), note: "absence hours ÷ est. scheduled hours" });
     kpiCard(kpiRow, { label: "Absenteeism Rate — Labor", value: fmtPct(absenceRateLabor), note: "absence hours ÷ est. scheduled hours" });
     kpiCard(kpiRow, { label: "Lost Workdays", value: fmtInt(lostWorkdays), note: `${fmtInt(totalAbsenceHours)} absence hours` });
+    kpiCard(kpiRow, { label: "Total Working Days", value: fmtInt(totalWorkingDays), note: "active headcount × est. scheduled days" });
+    kpiCard(kpiRow, { label: "Days till YTD", value: fmtInt(daysTillYTD), note: `${effectiveYear}, through ${month === "All" ? "today" : month}` });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -111,6 +125,28 @@ export function render({ db, contentEl, filtersEl }) {
     for (const a of absRows) paidCounts[a.paidUnpaid] = (paidCounts[a.paidUnpaid] || 0) + a.absenceHours;
     const c4 = chartCard(grid, { title: "Absence Hours: Paid vs. Unpaid", drilldown: { records: absRows, matchField: "paidUnpaid", db } });
     barChart(c4, { labels: ["Paid", "Unpaid"], datasets: [{ label: "Hours", data: [Math.round(paidCounts.Paid), Math.round(paidCounts.Unpaid)] }], showLegend: false });
+
+    // Monthly trend, trailing 12 months — Department applies (same dimension as
+    // the rest of this page), Year/Month don't (a 12-month trend needs all 12
+    // months regardless of the period filter, same convention as every other
+    // trend chart in this app).
+    const months = lastNMonths(12);
+    function monthlyRateFor(category, ym) {
+      const monthEndDate = monthEnd(ym);
+      const hc = db.employeeMaster.filter((e) => isActiveAsOf(e, monthEndDate) && e.workforceCategory === category && (dept === "All" || e.department === dept)).length;
+      const hours = db.absenteeism
+        .filter((a) => a.absenceDate?.startsWith(ym) && (dept === "All" || a.department === dept) && db.employeeIndex.get(a.employeeId)?.workforceCategory === category)
+        .reduce((s, a) => s + a.absenceHours, 0);
+      const scheduled = Math.max(1, hc * (260 / 12) * 8);
+      return (hours / scheduled) * 100;
+    }
+    const staffTrend = months.map((ym) => monthlyRateFor("Staff", ym));
+    const laborTrend = months.map((ym) => monthlyRateFor("Labor", ym));
+    const c5 = chartCard(grid, { title: "Absenteeism % Trend", sub: "Monthly, Staff vs. Labor, trailing 12 months" });
+    lineChart(c5, { labels: months.map(monthLabel), datasets: [
+      { label: "Staff", data: staffTrend.map((v) => Math.round(v * 100) / 100) },
+      { label: "Labor", data: laborTrend.map((v) => Math.round(v * 100) / 100) },
+    ] });
   }
 
   draw();

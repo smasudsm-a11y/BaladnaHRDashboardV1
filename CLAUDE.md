@@ -6,14 +6,22 @@ history" below for what exists and in what order it was added.
 
 ## Current status (2026-08-13) — read this first if resuming
 
-The phased plan to close gaps between this dashboard and a separate, much
-larger Power BI suite Group IT built for Power International Holding (the
-parent group Baladna sits under — that suite is Group-wide, multi-company;
-this app is Baladna-only, by explicit user decision, not an oversight) is now
-**complete**. The comparison and phased plan aren't written down anywhere in
-this repo outside this note and git history — if you need the full page-by-
-page comparison again, it'd have to be redone from scratch, or ask the user
-for the original Power BI screenshots.
+**Round 1** of the phased plan to close gaps between this dashboard and a
+separate, much larger Power BI suite Group IT built for Power International
+Holding (the parent group Baladna sits under — that suite is Group-wide,
+multi-company; this app is Baladna-only, by explicit user decision, not an
+oversight) is done. It was declared "complete" below, but that call turned
+out to be premature: it was based on prose recall of an earlier screenshot
+comparison, not a real page-by-page audit. When the user re-shared the same
+15 Power BI screenshots and asked for an actual comparison, reading every
+page's source code + the live schema turned up a long list of real gaps —
+whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
+Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
+(below, planned but not started as of this note) is the fix for that gap,
+phased and written down this time specifically so it doesn't have to be
+redone from scratch again. If you need the original screenshots again
+anyway (e.g. to re-verify a phase after it's built), ask the user — they
+aren't stored in this repo.
 
 **Done and merged** (Phases A, B, C, and Payroll):
 - Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
@@ -40,6 +48,86 @@ see the Zee gotcha below for its access-control design (deliberately has no
 database access at all) and the one manual Dashboard step it needs
 (`ANTHROPIC_API_KEY` secret) that isn't tracked anywhere else in this file's
 numbered migration list, since it's not a migration.
+
+## Power BI Parity — Round 2 (started 2026-08-13)
+
+Full re-audit against the same 15 Power BI screenshots as Round 1, this time
+reading every one of this app's 20 page files + the live schema directly
+instead of relying on memory. **CTC-related gaps and the Footprint tab are
+explicitly excluded from this plan** (user decision, 2026-08-13 — Footprint
+was never screenshotted anyway). Phased roughly cheapest/lowest-risk first;
+later phases depend on earlier ones' tables existing.
+
+- **Phase D — done.** Quick wins, no new tables (new charts/KPIs over
+  existing data only): "Headcount by Grade" and "Headcount by Position
+  Title" charts on Headcount; "Net Salary by Grade" and "Net Salary by
+  Nationality" (full breakdown, not just Qatari/non-Qatari) on Payroll, plus
+  "Net Pay — Staff"/"Net Pay — Labor" headline KPIs (previously
+  filter-only); a monthly Staff-vs-Labor absenteeism % trend chart on
+  Leave & Absence, plus "Total Working Days"/"Days till YTD" KPIs; a
+  monthly completion-trend chart and an "Assigned/Completed by Grade"
+  chart on Training; "Appraisals" count + "Completion %" KPIs and a
+  "Post-Calibration Average by Grade" chart on Performance; a "High
+  Performer Retention %" KPI on Attrition (joins `performance.overallRating`
+  against `employee_master`'s current status — no new table, just new page
+  logic + wider RLS access, see `16_phase_d_access.sql`).
+  Two RLS widenings were needed even though no schema changed: Attrition's
+  "High Performer Retention %" needs `db.performance` (not previously
+  granted to the `attrition` section), and Payroll's "Net Salary by Grade"
+  needs `db.latestBaseSalary` for the grade join (not previously granted to
+  the `payroll` section) — both added in `16_phase_d_access.sql`, plus the
+  matching `SECTION_TABLES` entries in `data.js`.
+- **Phase E — Underpaid & Overpaid Analysis (new page, existing data)**:
+  reuses `base_salary`/`salary_structure`, the same data Compensation's
+  quartile chart already reads. Headline $ shortfall/excess KPIs (Σ
+  difference from grade min/max) and severity-banded distribution charts
+  (0–9%, 10–19%, 20–29%, 30–39%, 40%+) for both underpaid and overpaid.
+  `meta.section: "compensation"` — shares that access grant, same mechanism
+  as `nhp.js` sharing `training`'s.
+- **Phase F — modest schema additions** (new columns, not new tables):
+  `absenteeism.approval_status` (backfilled synthetically) → "Unapproved
+  Absences" KPI; a third `workforce_category` value "Consultant" (small
+  backfill rule addition) to match Power BI's 3-way split; fold Leave's
+  "Est. Annual Leave Liability" into a new `payroll.annual_leave_cost`
+  column, trended on the Payroll Cost Trend chart; `training.expiry_date` +
+  a compliance-status column → "Compliance Courses by Expiry Status"
+  chart; Entity Type/Required Date/Supervisor columns added for NHP's
+  detail table; a Junior/Mid/Senior/Executive grade-tier mapping (like the
+  `workforce_category` backfill) → "Salary Positioning by Grade Tier" on
+  Compensation, split Staff vs. Labor; a small `budgeted_positions`
+  concept on Recruitment so "Vacant Positions" means something distinct
+  from "Open Requisitions."
+- **Phase G — Targets/Benchmarks (new small table, cross-cutting)**: a
+  `kpi_targets` table (metric id → target value) surfaced as a delta/target
+  line on every rate KPI that has one in Power BI (turnover, retention,
+  absenteeism, etc.) — touches Attrition, Executive, and Leave & Absence's
+  KPI cards.
+- **Phase H — Succession Planning (new module)**: new tables for critical
+  positions, incumbents, and successors/readiness; new page mirroring the
+  Power BI report (Critical Roles, Position Holders, Vacancies, Successor
+  Readiness, High-Potential Employees, Incumbents detail table). Synthetic
+  from day one, same philosophy as Payroll/Attendance Violations.
+- **Phase I — Probation & PIP (new module)**: new tables for probation
+  forms and PIP records (3-month + 6-month milestones); new page with
+  probation success rate and PIP enrollment/success rates at both
+  milestones. Synthetic from day one.
+- **Phase J — Employee Satisfaction / eNPS (new module)**: new tables for
+  exit-survey responses and stage-gate scores (Interview/Recruiting/
+  Onboarding/Probation); new page with the eNPS gauge + detractor/neutral/
+  promoter split and Employee Lifecycle Score + trend. Synthetic from day
+  one. Employee Lifecycle Score also feeds Phase L below.
+- **Phase K — Headcount Forecast (new module, synthetic — not real ML)**:
+  no actual forecasting model (this is a static site with no backend
+  compute to train one) — generate a synthetic Actual/Forecast/Lower-Bound/
+  Upper-Bound series that trends plausibly off real headcount history, same
+  "looks real, isn't" philosophy as every other synthetic module in this
+  app. New page mirroring the Power BI report.
+- **Phase L — Executive Insights rollup**: once H/J/G exist, go back to
+  Executive Insights and surface Succession Coverage %, Employee Lifecycle
+  Score, target lines on existing KPIs, and a new small Initiatives
+  tracker (name + status: Completed/In Progress/Overdue — the simplest item
+  on this whole list, a small new table with no dependencies). Deliberately
+  last since most of what it surfaces doesn't exist until earlier phases land.
 
 ## Tech stack & constraints
 
@@ -221,8 +309,8 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    sections legitimately read that table client-side (see the table-to-section
    map hardcoded in both `data.js`'s `SECTION_TABLES` and
    `06_section_based_access.sql`/`11_attendance_violations.sql`/
-   `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`
-   — keep these in sync if any changes).
+   `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`/
+   `16_phase_d_access.sql` — keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
    `exec` is broader than it looks. Same reasoning behind why `recruitment`
@@ -284,6 +372,13 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     `employee_master`) for the `payroll` section. Upserted by
     `(employee_id, period)`, not delete+insert — needs admin UPDATE as well
     as insert/delete (same reasoning as `ctc_actuals`/`ctc_budget`).
+16. `16_phase_d_access.sql` — Power BI Parity Round 2, Phase D: widens
+    `performance`'s sectioned-read policy to include `attrition` (High
+    Performer Retention % KPI), and `base_salary`'s to include `payroll`
+    (Net Salary by Grade chart). **Required** for those two features —
+    without this, a section-restricted, non-full_access attrition/payroll
+    user sees them silently come back empty, same failure mode as the gap
+    `13_newhires_salary_access.sql` fixed.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

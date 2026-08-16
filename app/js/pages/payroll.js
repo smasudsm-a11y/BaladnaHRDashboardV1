@@ -1,4 +1,4 @@
-import { sortedUnique, sumBy, avgBy, fmtInt, fmtMoney } from "../data.js";
+import { sortedUnique, sortGrades, sumBy, avgBy, fmtInt, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect } from "../charts.js";
 
 export const meta = {
@@ -17,6 +17,7 @@ function periodLabelOf(period) {
 
 function enrich(db, row) {
   const e = db.employeeIndex.get(row.employeeId);
+  const sal = db.latestBaseSalary.get(row.employeeId);
   return {
     ...row,
     employeeName: e?.employeeName || row.employeeId,
@@ -25,6 +26,7 @@ function enrich(db, row) {
     workforceCategory: e?.workforceCategory || "Unclassified",
     nationality: e?.nationality || "Unknown",
     nationalityGroup: e?.nationality === "Qatari" ? "Qatari" : "Non-Qatari",
+    grade: sal?.grade || "Unclassified",
   };
 }
 
@@ -85,6 +87,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Total Air Ticket Cost", value: fmtMoney(totalAirTicket), note: "selected period" });
     kpiCard(kpiRow, { label: "Total Net Pay", value: fmtMoney(totalNetPay), note: "selected period" });
     kpiCard(kpiRow, { label: "Avg Net Pay / Employee", value: fmtMoney(avgNetPay), note: `${fmtInt(periodRows.length)} employee-months` });
+    kpiCard(kpiRow, { label: "Net Pay — Staff", value: fmtMoney(sumBy(periodRows.filter((r) => r.workforceCategory === "Staff"), (r) => r.netPay)), note: "selected period" });
+    kpiCard(kpiRow, { label: "Net Pay — Labor", value: fmtMoney(sumBy(periodRows.filter((r) => r.workforceCategory === "Labor"), (r) => r.netPay)), note: "selected period" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -130,6 +134,29 @@ export function render({ db, contentEl, filtersEl }) {
       drilldown: { records: periodRows, matchField: "nationalityGroup", db },
     });
     barChart(c4, { labels: NAT_ORDER, datasets: [{ label: "Air Ticket Cost", data: airTicketByNat.map(Math.round) }], showLegend: false });
+
+    // Chart 5: Net Salary by Grade, selected period
+    const gradeOrder = sortGrades(sortedUnique(periodRows, (r) => r.grade));
+    const netByGrade = gradeOrder.map((g) => sumBy(periodRows.filter((r) => r.grade === g), (r) => r.netPay));
+    const c5 = chartCard(grid, {
+      title: "Net Salary by Grade", sub: "Selected period",
+      drilldown: { records: periodRows, matchField: "grade", db },
+    });
+    barChart(c5, { labels: gradeOrder, datasets: [{ label: "Net Pay", data: netByGrade.map(Math.round) }], showLegend: false });
+
+    // Chart 6: Net Salary by Nationality, top 8 + Other, selected period
+    const natTotals = new Map();
+    for (const r of periodRows) natTotals.set(r.nationality, (natTotals.get(r.nationality) || 0) + r.netPay);
+    const natSorted = Array.from(natTotals.entries()).sort((a, b) => b[1] - a[1]);
+    const topNat = natSorted.slice(0, 8);
+    const otherNat = natSorted.slice(8).reduce((s, [, v]) => s + v, 0);
+    const natLabels = [...topNat.map(([n]) => n), ...(otherNat ? ["Other"] : [])];
+    const natValues = [...topNat.map(([, v]) => v), ...(otherNat ? [otherNat] : [])];
+    const c6 = chartCard(grid, {
+      title: "Net Salary by Nationality", sub: "Top nationalities, selected period",
+      drilldown: { records: periodRows, matchField: "nationality", db },
+    });
+    barChart(c6, { labels: natLabels, datasets: [{ label: "Net Pay", data: natValues.map(Math.round) }], horizontal: true, showLegend: false });
 
     // Breakdown table: Department x metric, selected period
     const deptBreakdown = deptOrder.map((d) => {
