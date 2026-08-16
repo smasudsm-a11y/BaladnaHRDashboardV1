@@ -46,7 +46,12 @@ function baseScales(extra = {}) {
     y: {
       grid: { color: grid },
       border: { display: false },
-      ticks: { color: muted, font: { size: 11 } },
+      // precision: 0 stops Chart.js from generating fractional ticks
+      // (0, 0.1, 0.2, …) when every value in a chart is 0 — otherwise an
+      // all-zero severity band (e.g. this app's Underpaid charts, where
+      // the underlying data has zero underpaid employees) renders a
+      // nonsensical decimal axis instead of a clean "0" line.
+      ticks: { color: muted, font: { size: 11 }, precision: 0 },
       beginAtZero: true,
       ...extra.y,
     },
