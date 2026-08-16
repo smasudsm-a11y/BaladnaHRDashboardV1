@@ -25,6 +25,8 @@ const TABLES = {
   incumbents: "incumbents",
   successors: "successors",
   kpiTargets: "kpi_targets",
+  exitSurveys: "exit_surveys",
+  stageGateScores: "stage_gate_scores",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -50,6 +52,7 @@ const SECTION_TABLES = {
   "ctc-yoy": ["cost_centers", "ctc_actuals", "ctc_budget"],
   payroll: ["payroll", "employee_master", "base_salary"],
   succession: ["critical_positions", "incumbents", "successors", "employee_master"],
+  enps: ["exit_surveys", "stage_gate_scores", "employee_master"],
 };
 
 function toCamel(row) {

@@ -22,6 +22,7 @@ import * as ctcVarianceExplorer from "./pages/ctc-variance-explorer.js";
 import * as ctcYearOnYear from "./pages/ctc-year-on-year.js";
 import * as payroll from "./pages/payroll.js";
 import * as succession from "./pages/succession.js";
+import * as enps from "./pages/enps.js";
 import * as manageAccess from "./pages/admin.js";
 import * as dataRefresh from "./pages/data-refresh.js";
 import * as ctcConverter from "./pages/ctc-converter.js";
@@ -36,6 +37,7 @@ const NAV = [
   { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
   { group: "Payroll Report", pages: [payroll] },
   { group: "Succession Planning", pages: [succession] },
+  { group: "Employee Satisfaction", pages: [enps] },
 ];
 
 const pagesById = new Map();
