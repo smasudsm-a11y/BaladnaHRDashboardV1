@@ -25,7 +25,9 @@ numbers don't track the phase letters: F landed ahead of E the same day; G
 and H merged in sequence (H first, hence G's migration landing on 19
 instead of 18 — 18 went to H's `18_succession_planning.sql`); I and J
 likewise merged in sequence (I first, hence J's migration landing on 21
-instead of 20 — 20 went to I's `20_probation_pip.sql`). Phases K, L remain.
+instead of 20 — 20 went to I's `20_probation_pip.sql`). Phase K is now also
+done (migration 22 — no letter/number gap this time, since no other Round 2
+phase branch was in flight concurrently). Phase L remains.
 If you need the original screenshots again anyway (e.g.
 to re-verify a phase after it's built), ask the user — they aren't stored
 in this repo.
@@ -284,12 +286,46 @@ later phases depend on earlier ones' tables existing.
     sectioned-read policy now includes `enps`. New "18 — Employee
     Satisfaction" Data Refresh card (2 sheets, delete+insert like the other
     Round 2 new-module tables).
-- **Phase K — Headcount Forecast (new module, synthetic — not real ML)**:
-  no actual forecasting model (this is a static site with no backend
-  compute to train one) — generate a synthetic Actual/Forecast/Lower-Bound/
-  Upper-Bound series that trends plausibly off real headcount history, same
-  "looks real, isn't" philosophy as every other synthetic module in this
-  app. New page mirroring the Power BI report.
+- **Phase K — done** (built 2026-08-16). Headcount Forecast, a new module
+  and nav group (see `22_headcount_forecast.sql` and
+  `scripts/headcount-forecast-data/` — same synthetic-from-day-one
+  philosophy as Succession Planning/Probation & PIP/eNPS). One new table,
+  `headcount_forecast` — deliberately holds ONLY the forward-looking
+  Forecast/Lower-Bound/Upper-Bound series, not an "Actual" scenario too:
+  Actual headcount is already perfectly derivable from
+  `employee_master.hire_date`/`termination_date` (exactly what
+  `headcount.js`'s and `executive.js`'s own live "Headcount Trend" charts
+  already compute via `isActiveAsOf`/`monthEnd`), so storing a duplicate
+  copy would just be redundant data that could drift out of sync with the
+  real population — a deliberate deviation from a literal reading of this
+  phase's original one-line plan ("synthetic Actual/Forecast/Lower-Bound/
+  Upper-Bound series"), flagged here since it's a design call, not an
+  oversight. `generate_headcount_forecast_data.ps1` derives each of the 4
+  divisions' (Commercial/Corporate/Operations/Supply Chain) forecast growth
+  rate from that division's own real trailing-12-month net change (not a
+  random draw — deterministic, like Succession Planning/Probation & PIP/
+  eNPS's generators), projected 12 months past this app's fixed "today"
+  (2026-08-02, i.e. Sep 2026–Aug 2027), with a confidence band that widens
+  from ~1.4% of the forecast at month 1 to ~5.8% at month 12. New page
+  `headcount-forecast.js`: 5 KPIs (Current Headcount, Forecasted Headcount
+  at 12 months, Projected Net Change, Projected Growth %, Forecast
+  Confidence Range), a Headcount Trend chart (Actual solid + Forecast
+  dashed + Lower/Upper Bound thin dashed, null-padded so the forecast-side
+  lines visually pick up exactly where Actual ends — no `drilldown`, same
+  as every other pure time-series trend chart in this app, e.g.
+  `ctc-budget-actual.js`'s trend charts), and a Forecasted Headcount by
+  Division chart (always broken down by all 4 divisions regardless of the
+  page's own Division filter, same "the one dimension a chart groups by
+  isn't also narrowed by that same filter" convention `probation-pip.js`'s
+  year-trend chart already established) plus a Forecast Detail table. New
+  `headcount-forecast` section id (auto-appears in Manage Access) and one
+  RLS widening: `employee_master`'s sectioned-read policy now includes
+  `headcount-forecast`, needed for the page's own live Current Headcount
+  figure. New "19 — Headcount Forecast" Data Refresh card, upserted by
+  `(period, division)` — a rolling forecast that gets regenerated
+  periodically should only touch the periods/divisions in that upload, same
+  reasoning as Payroll's `(employee_id, period)` key, not delete+insert like
+  Succession Planning/Probation & PIP/eNPS's point-in-time roster snapshots.
 - **Phase L — Executive Insights rollup**: once H/J/G exist, go back to
   Executive Insights and surface Succession Coverage %, Employee Lifecycle
   Score, target lines on existing KPIs, and a new small Initiatives
@@ -455,6 +491,18 @@ app/
                            (this app's chart toolkit has no literal gauge
                            widget). See the Employee Satisfaction gotcha
                            below for how scores are derived.
+      headcount-forecast.js "Headcount Forecast" (own nav group, one page).
+                           Reads `db.headcountForecast` (Forecast/Lower/
+                           Upper only) directly — no employeeIndex join at
+                           all, since it's a division-level aggregate with
+                           no per-person drilldown target. The "Current
+                           Headcount" figure and the trend chart's
+                           historical portion are computed LIVE from
+                           `db.employeeMaster` client-side (same
+                           `isActiveAsOf`/`monthEnd` pattern
+                           `headcount.js`/`executive.js` already use), not
+                           read from any stored table — see the Headcount
+                           Forecast gotcha below for why.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -476,6 +524,9 @@ app/
                            PIP ("16 — Probation & PIP") and Employee
                            Satisfaction ("18 — Employee Satisfaction") each
                            bundle their own 2 sheets the same way.
+                           Headcount Forecast ("19 — Headcount Forecast")
+                           is upserted by (period, division), like Payroll,
+                           not delete+insert.
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -528,9 +579,18 @@ scripts/
                          doesn't depend on that phase's branch having
                          merged first), build_enps_workbook.ps1 (CSVs ->
                          Database/17_Employee_Satisfaction.xlsx, 2 sheets)
+  headcount-forecast-data/ Headcount Forecast's one-time synthetic-from-
+                         scratch generator (see Headcount Forecast gotcha
+                         below): generate_headcount_forecast_data.ps1 (reads
+                         employee_master.csv only -> headcount_forecast.csv
+                         — deterministic, no Get-Random; each division's
+                         forecast growth rate is that division's own real
+                         trailing-12-month net change, not a random draw),
+                         build_headcount_forecast_workbook.ps1 (CSV ->
+                         Database/18_Headcount_Forecast.xlsx, 1 sheet)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 21 so far — see below)
+                         NUMBER ORDER (01 through 22 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -683,6 +743,17 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     Numbered 21 (not 20, which Phase I's `20_probation_pip.sql` claimed
     first) — both were authored in parallel against the same pre-Phase-I/J
     `main`.
+22. `22_headcount_forecast.sql` — Power BI Parity Round 2, Phase K: new
+    `headcount_forecast` table for the new `headcount-forecast` section
+    (sectioned read, admin insert/update/delete — upserted by
+    `(period, division)`, not delete+insert, since it's a rolling forecast
+    that gets regenerated periodically rather than a one-off roster
+    snapshot), plus widening `employee_master`'s sectioned-read policy to
+    include `headcount-forecast` (needed for the page's own live Current
+    Headcount figure). No "Actual" data in this table at all — see
+    CLAUDE.md's Phase K writeup above for why. See the "19 — Headcount
+    Forecast" Data Refresh card and `scripts/headcount-forecast-data/` for
+    the synthetic forecast series.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -1041,6 +1112,44 @@ locally → verify on Render.
   - Seeded into Supabase the same way as Succession Planning: no one-off
     seed script, just the "18 — Employee Satisfaction" Data Refresh card
     once the migration and workbook both exist.
+- **Headcount Forecast (`Database/18_Headcount_Forecast.xlsx`) is
+  synthetic from day one, but ONLY on the Forecast/Lower/Upper side** —
+  unlike every other Round 2 module, its stored table deliberately has NO
+  "Actual" data at all. Actual headcount is already perfectly derivable
+  from `employee_master.hire_date`/`termination_date` (that's exactly what
+  `headcount.js`'s and `executive.js`'s own live "Headcount Trend" charts
+  already compute client-side via `isActiveAsOf`/`monthEnd`), so this
+  module reuses that same live computation for its "Current Headcount" KPI
+  and the historical portion of its trend chart, rather than storing a
+  second, potentially-drifting copy of a number the app can already compute
+  for free. Generated by
+  `scripts/headcount-forecast-data/generate_headcount_forecast_data.ps1`
+  (reads `employee_master.csv` only) then
+  `build_headcount_forecast_workbook.ps1` (CSV → 1-sheet workbook, reusing
+  `build_ctc_workbook.ps1`'s `Write-SheetFromRows` helper verbatim,
+  including its Text-format-before-assignment date gotcha for the `Period`
+  column). Deterministic, like the other Round 2 generators.
+  - **Forecast growth rate per division is that division's own real
+    trailing-12-month net change** (Commercial +0.5/mo, Corporate −0.75/mo,
+    Operations −1.08/mo, Supply Chain −0.58/mo, as of this app's fixed
+    "today," 2026-08-02) — not a random draw. Projected forward 12 months
+    (Sep 2026–Aug 2027), rounded, floored at 0.
+  - **Confidence band widens with horizon**: ~1.4% of the forecast value at
+    month 1 up to ~5.8% at month 12 (minimum ±2, so a division near-zero
+    headcount still gets a visible band) — the standard "further out = less
+    certain" shape, not a fixed-width band.
+  - **The page's live "Current Headcount" figure and the trend chart's
+    last historical point deliberately use the SAME cutoff the generator
+    script used as its own baseline** — `isActiveAsOf(e, monthEnd(ym))` for
+    the current calendar month, not `employmentStatus === "Active"` (which
+    is what `headcount.js`'s own KPI card uses for its literal "right now"
+    snapshot). Using the KPI-card version here instead would create a
+    small, silent mismatch between the chart's Actual/Forecast bridging
+    point and the CSV's own baseline — worth checking first if this page's
+    trend line ever looks like it "jumps" at the boundary.
+  - Seeded into Supabase the same way as the other Round 2 modules: no
+    one-off seed script, just the "19 — Headcount Forecast" Data Refresh
+    card once the migration and workbook both exist.
 - **Zee (`app/js/zee.js` + `supabase/functions/zee-chat/index.ts`) has ZERO
   database access by design** — this is deliberate, not an oversight, and is
   what makes "Zee won't answer about modules you don't have access to" true
@@ -1145,4 +1254,9 @@ locally → verify on Render.
     a reproduced early-termination signal so it has no dependency on Phase
     I's branch — I and J were likewise both built in their own parallel
     sessions and merged in sequence, I first, hence J's migration landing
-    on 21 instead of 20) — see "Power BI Parity — Round 2" above
+    on 21 instead of 20), and Phase K (Headcount Forecast, a new module and
+    nav group — one new table, `headcount_forecast`, holding only the
+    forward-looking Forecast/Lower/Upper series since Actual headcount is
+    already computable live from `employee_master`; each division's
+    forecast growth rate is that division's own real trailing-12-month net
+    change, not a random draw) — see "Power BI Parity — Round 2" above

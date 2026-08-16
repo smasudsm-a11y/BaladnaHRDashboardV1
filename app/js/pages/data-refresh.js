@@ -340,6 +340,23 @@ const UPLOAD_UNITS = [
       },
     ],
   },
+  {
+    id: "headcount_forecast", fileLabel: "19 — Headcount Forecast",
+    sheets: [{
+      // Upserted by (period, division), not delete+insert — a rolling
+      // forecast that gets regenerated periodically should only touch the
+      // periods/divisions in that upload (see 22_headcount_forecast.sql),
+      // same reasoning as payroll's (employee_id, period) key. No "Actual"
+      // sheet here — Actual headcount is computed live from
+      // employee_master, same as headcount.js's own trend chart.
+      sheetName: "Headcount Forecast Data", table: "headcount_forecast", dateFields: ["period"],
+      upsertKey: "period,division",
+      fields: {
+        "Period": "period", "Division": "division", "Forecast Headcount": "forecast_headcount",
+        "Lower Bound": "lower_bound", "Upper Bound": "upper_bound",
+      },
+    }],
+  },
 ];
 
 function toIsoDate(v) {
