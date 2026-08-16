@@ -6,8 +6,18 @@ export const meta = { id: "performance", label: "Performance", subtitle: "Rating
 const RATING_ORDER = ["Below Expectations", "Meets Some Expectations", "Meets Expectations", "Exceeds Expectations", "Exceptional"];
 const RATING_SCORE = Object.fromEntries(RATING_ORDER.map((r, i) => [r, i + 1]));
 
+// A forced-distribution policy curve (like a bell-curve calibration
+// guideline), not per-employee data — hardcoded the same way SEVERITY_BANDS/
+// RATING_ORDER are, since there's no live source for what a company's target
+// rating shape "should" be. Matches the Power BI report's "Target
+// Distribution" row; sums to 100.
+const TARGET_DISTRIBUTION = { "Below Expectations": 5, "Meets Some Expectations": 15, "Meets Expectations": 60, "Exceeds Expectations": 15, "Exceptional": 5 };
+// Same reasoning — a plausible round target for the post-calibration
+// average score, not reconciled against anything real.
+const POST_CALIBRATION_TARGET = 3.0;
+
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.performance, ["department", "jobGrade"]);
+  const enriched = withEmployeeFields(db, db.performance, ["department", "jobGrade", "terminationDate"]);
   const realCycles = sortedUnique(enriched, (p) => p.performanceCycle).sort();
   const cycles = ["All", ...realCycles];
   const depts = ["All", ...sortedUnique(enriched, (p) => p.department)];
@@ -46,6 +56,18 @@ export function render({ db, contentEl, filtersEl }) {
     const appraisedEmployees = countUnique(rows, (p) => p.employeeId);
     const completionPct = eligibleActive ? (appraisedEmployees / eligibleActive) * 100 : 0;
 
+    // "Deleted Appraisals" (Power BI concept: a cycle's record pulled from
+    // the final calibrated set) — derived from a real signal already on
+    // this page, not a new field: an appraisal whose employee has since
+    // left the company, same early-termination-as-proxy reasoning as
+    // Probation & PIP's outcome derivation.
+    const deleted = rows.filter((p) => p.terminationDate);
+    const completedAppraisals = rows.length - deleted.length;
+
+    const preAvg = rows.length ? rows.reduce((s, p) => s + RATING_SCORE[p.managerRating], 0) / rows.length : 0;
+    const postAvg = rows.length ? rows.reduce((s, p) => s + RATING_SCORE[p.overallRating], 0) / rows.length : 0;
+    const calibrationDelta = postAvg - preAvg;
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -56,7 +78,15 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Promotion Recommendation Rate", value: fmtPct(rows.length ? (promo / rows.length) * 100 : 0), note: `${fmtInt(promo)} recommended` });
     kpiCard(kpiRow, { label: "Ratings Adjusted in Calibration", value: fmtPct(rows.length ? (adjusted / rows.length) * 100 : 0), note: `${fmtInt(adjusted)} changed from manager's initial rating` });
     kpiCard(kpiRow, { label: "Appraisals", value: fmtInt(rows.length), note: "selected cycle/department" });
+    kpiCard(kpiRow, { label: "Completed Appraisals", value: fmtInt(completedAppraisals), note: `${fmtInt(deleted.length)} deleted, excluded` });
     kpiCard(kpiRow, { label: "Completion %", value: fmtPct(completionPct), note: `${fmtInt(appraisedEmployees)} of ${fmtInt(eligibleActive)} eligible employees appraised` });
+    kpiCard(kpiRow, { label: "Deleted Appraisals", value: fmtInt(deleted.length), note: "employee left before cycle closed", deltaKind: deleted.length ? "bad" : "good" });
+    kpiCard(kpiRow, { label: "Pre Overall Average", value: fmtDec(preAvg, 2), note: "manager's initial rating, 1–5 scale" });
+    kpiCard(kpiRow, {
+      label: "Post Overall Average", value: fmtDec(postAvg, 2),
+      note: `${calibrationDelta >= 0 ? "▲" : "▼"} ${fmtDec(Math.abs(calibrationDelta), 2)} vs. pre · Target: ${fmtDec(POST_CALIBRATION_TARGET, 2)}`,
+      deltaKind: postAvg >= POST_CALIBRATION_TARGET ? "good" : "bad",
+    });
 
     noteBanner(contentEl, `<b>Data gap flagged in PRD (§8.9):</b> the 9-Box Performance × Potential grid requires a "Potential" rating input that is not currently captured alongside Overall Rating. This page shows the Rating Distribution and departmental breakdown that <i>are</i> supported by current data; the 9-box view is omitted pending that data-capture gap being closed with HRIS.`);
 
@@ -97,6 +127,25 @@ export function render({ db, contentEl, filtersEl }) {
     const preDist = RATING_ORDER.map((r) => rows.filter((p) => p.managerRating === r).length);
     const c5 = chartCard(grid, { title: "Pre vs. Post-Calibration Ratings", sub: "Manager's initial rating vs. final calibrated rating" });
     barChart(c5, { labels: RATING_ORDER, datasets: [{ label: "Manager Rating (Pre)", data: preDist }, { label: "Calibrated Rating (Post)", data: dist }] });
+
+    // Matches the Power BI report's "Ratings Distribution" 3-row 100%
+    // stacked visual (Pre-Calibration / Target Distribution / Post-Calibration,
+    // each segmented across the 5 rating bands) — no drilldown, same as
+    // every other pure-percentage summary chart in this app (e.g.
+    // ctc-budget-actual.js's trend charts).
+    const prePct = RATING_ORDER.map((_, i) => (rows.length ? (preDist[i] / rows.length) * 100 : 0));
+    const postPct = RATING_ORDER.map((_, i) => (rows.length ? (dist[i] / rows.length) * 100 : 0));
+    const c7 = chartCard(grid, { title: "Ratings Distribution — Pre / Target / Post", sub: "% of appraisals in each rating band" });
+    barChart(c7, {
+      labels: ["Pre-Calibration", "Target Distribution", "Post-Calibration"],
+      datasets: RATING_ORDER.map((r, i) => ({
+        label: r,
+        data: [prePct[i], TARGET_DISTRIBUTION[r], postPct[i]].map((v) => Math.round(v * 10) / 10),
+        stacked: true,
+      })),
+      horizontal: true,
+      stacked: true,
+    });
 
     const gradeOrder = sortGrades(sortedUnique(enriched, (p) => p.jobGrade));
     const avgPostByGrade = gradeOrder.map((g) => {
