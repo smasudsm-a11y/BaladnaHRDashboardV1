@@ -77,13 +77,16 @@ later phases depend on earlier ones' tables existing.
   needs `db.latestBaseSalary` for the grade join (not previously granted to
   the `payroll` section) — both added in `16_phase_d_access.sql`, plus the
   matching `SECTION_TABLES` entries in `data.js`.
-- **Phase E — Underpaid & Overpaid Analysis (new page, existing data)**:
-  reuses `base_salary`/`salary_structure`, the same data Compensation's
-  quartile chart already reads. Headline $ shortfall/excess KPIs (Σ
-  difference from grade min/max) and severity-banded distribution charts
-  (0–9%, 10–19%, 20–29%, 30–39%, 40%+) for both underpaid and overpaid.
-  `meta.section: "compensation"` — shares that access grant, same mechanism
-  as `nhp.js` sharing `training`'s.
+- **Phase E — done.** Underpaid & Overpaid Analysis (`underpaid-overpaid.js`,
+  new page, existing data): reuses `base_salary`/`salary_structure`, the
+  same data Compensation's quartile chart already reads. Headline $
+  shortfall/excess KPIs (Σ difference from grade min/max) and
+  severity-banded distribution charts (0–9%, 10–19%, 20–29%, 30–39%, 40%+)
+  for both underpaid and overpaid. `meta.section: "compensation"` — shares
+  that access grant, same mechanism as `nhp.js` sharing `training`'s; needed
+  no `data.js`/RLS changes at all, since any user granted `compensation`
+  already has the `compensation` page id in `allowedIds`, whose own
+  `SECTION_TABLES` entry already fetches everything this page reads.
 - **Phase F — modest schema additions** (new columns, not new tables):
   `absenteeism.approval_status` (backfilled synthetically) → "Unapproved
   Absences" KPI; a third `workforce_category` value "Consultant" (small
@@ -218,6 +221,14 @@ app/
                            `meta.section = "training"` — shares the Learning &
                            Training access grant rather than needing its own,
                            since it's the same underlying table.
+      underpaid-overpaid.js "Underpaid & Overpaid Analysis" — severity-banded
+                           (0–9%/10–19%/20–29%/30–39%/40%+) $ shortfall and
+                           excess vs. grade min/max, reusing the exact same
+                           `base_salary`/`salary_structure` join Compensation's
+                           quartile chart already does. `meta.section =
+                           "compensation"` — shares that access grant and
+                           needs no `SECTION_TABLES` entry of its own (see the
+                           comment at the top of the file for why).
       ctc-budget-actual.js, ctc-expense-category.js, ctc-variance-explorer.js,
       ctc-year-on-year.js
         — the "CTC Report" nav group (4 pages, synthetic financial data — see
@@ -676,3 +687,9 @@ locally → verify on Render.
     proxies to the Anthropic API — designed with zero database access so its
     access control is structural (only ever sees the current page's own
     rendered data) rather than a permission check that could have a bug
+16. Started Power BI Parity Round 2 (a real page-by-page code+schema audit,
+    after Round 1's "complete" call turned out to be premature): Phase D
+    (quick-win charts/KPIs across Headcount, Payroll, Leave & Absence,
+    Training, Performance, Attrition — no new tables, two RLS widenings) and
+    Phase E (Underpaid & Overpaid Analysis, a new page reusing Compensation's
+    existing base_salary/salary_structure join, no new tables or access grants)
