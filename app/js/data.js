@@ -21,6 +21,9 @@ const TABLES = {
   ctcRevenue: "ctc_revenue",
   payroll: "payroll",
   budgetedPositions: "budgeted_positions",
+  criticalPositions: "critical_positions",
+  incumbents: "incumbents",
+  successors: "successors",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -45,6 +48,7 @@ const SECTION_TABLES = {
   "ctc-variance-explorer": ["cost_centers", "ctc_actuals", "ctc_budget"],
   "ctc-yoy": ["cost_centers", "ctc_actuals", "ctc_budget"],
   payroll: ["payroll", "employee_master", "base_salary"],
+  succession: ["critical_positions", "incumbents", "successors", "employee_master"],
 };
 
 function toCamel(row) {
@@ -93,6 +97,8 @@ export async function loadAll(allowedIds) {
   db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
 
   db.budgetedPositionsIndex = new Map(db.budgetedPositions.map((b) => [b.department, b]));
+
+  db.criticalPositionsIndex = new Map(db.criticalPositions.map((p) => [p.positionId, p]));
 
   db.latestBaseSalary = latestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
   db.latestTotalRewards = latestByEmployee(db.totalRewards, "employeeId", "salaryEffectiveDate");

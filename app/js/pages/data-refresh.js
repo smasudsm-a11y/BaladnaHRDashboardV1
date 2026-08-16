@@ -252,6 +252,35 @@ const UPLOAD_UNITS = [
       fields: { "Department": "department", "Budgeted Headcount": "budgeted_headcount" },
     }],
   },
+  {
+    id: "succession", fileLabel: "15 — Succession Planning",
+    sheets: [
+      {
+        // Delete+insert, not upserted — a succession roster is a point-in-time
+        // snapshot Total Rewards replaces wholesale when revised (see
+        // 18_succession_planning.sql), not an accumulating monthly table.
+        sheetName: "Critical Positions Data", table: "critical_positions", dateFields: [],
+        fields: {
+          "Position ID": "position_id", "Position Title": "position_title", "Department": "department",
+          "Division": "division", "Business Unit": "business_unit", "Job Grade": "job_grade", "Criticality": "criticality",
+        },
+      },
+      {
+        sheetName: "Incumbents Data", table: "incumbents", dateFields: [],
+        fields: {
+          "Position ID": "position_id", "Employee ID": "employee_id",
+          "Time in Role (Years)": "time_in_role_years", "Retirement Risk": "retirement_risk",
+        },
+      },
+      {
+        sheetName: "Successors Data", table: "successors", dateFields: [],
+        fields: {
+          "Position ID": "position_id", "Successor Employee ID": "successor_employee_id",
+          "Readiness": "readiness", "Is High Potential": "is_high_potential",
+        },
+      },
+    ],
+  },
 ];
 
 function toIsoDate(v) {
