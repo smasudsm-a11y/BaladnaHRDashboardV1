@@ -19,9 +19,11 @@ whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
 (below) is the fix for that gap, phased and written down this time
 specifically so it doesn't have to be redone from scratch again. Phase D, E,
-and F are done as of this note (F was built out of order, ahead of E, per
-explicit user request — both are done now, in parallel sessions, so the
-order didn't end up mattering); Phases G–L remain. If you need the original
+F, and H are done as of this note (F was built out of order, ahead of E, per
+explicit user request — both landed the same day in parallel sessions, so
+the order didn't end up mattering; H similarly built in its own parallel
+session, alongside G — check this section for whether G's merge has landed
+yet if resuming); Phases G (maybe), I–L remain. If you need the original
 screenshots again anyway (e.g. to re-verify a phase after it's built), ask
 the user — they aren't stored in this repo.
 
@@ -141,11 +143,46 @@ later phases depend on earlier ones' tables existing.
   line on every rate KPI that has one in Power BI (turnover, retention,
   absenteeism, etc.) — touches Attrition, Executive, and Leave & Absence's
   KPI cards.
-- **Phase H — Succession Planning (new module)**: new tables for critical
-  positions, incumbents, and successors/readiness; new page mirroring the
-  Power BI report (Critical Roles, Position Holders, Vacancies, Successor
-  Readiness, High-Potential Employees, Incumbents detail table). Synthetic
-  from day one, same philosophy as Payroll/Attendance Violations.
+- **Phase H — done** (built 2026-08-16). Succession Planning, a new module
+  and new nav group, synthetic from day one (see `18_succession_planning.sql`
+  and `scripts/succession-data/` — same philosophy as Payroll/Attendance
+  Violations, not the CTC Report module's real-data-then-resynthesize
+  approach). 3 new tables, matching the phase's own plan:
+  `critical_positions` (45 rows, step-sampled from the 174 active
+  Managerial/Executive employees so the roster spans every department
+  without naming literally every leadership role; `criticality` derived
+  deterministically from the position_title itself — "Chief Officer"/"Head
+  of Department" → Critical, "Senior Manager" → High, else Medium),
+  `incumbents` (one row per position — a separate table rather than columns
+  on `critical_positions`, since "Position Holders"/"Incumbents detail
+  table" are their own Power BI report sections; ~14% deliberately left
+  vacant — every 7th sampled position — with `retirement_risk` derived from
+  the incumbent's age), and `successors` (0–2 named successors per position
+  in a fixed 0/1/2/1 rotation, so ~1 in 4 positions has a genuine succession
+  gap; `readiness` derived from the successor's own tenure, with the 2nd
+  successor slot deliberately drawn from a rotating depth into the
+  candidate pool rather than always the next-longest-tenured person, since
+  that flattened every pick into "Ready Now" — see the generator script's
+  own comments for why). New page `succession.js` covers all 6 named Power
+  BI sections: Critical Roles (by department/criticality), Position Holders
+  (the Incumbents detail table), Vacancies (a Filled-vs-Vacant KPI/chart),
+  Successor Readiness (by band), High-Potential Employees (successors
+  flagged `is_high_potential`), plus a "Positions Without a Named Successor"
+  gap chart. New `succession` section id — auto-appears in Manage Access
+  (admin.js's checkbox grid derives its list from NAV, no admin.js changes
+  needed) and needed one RLS widening: `employee_master`'s sectioned-read
+  policy now includes `succession`, same reasoning as every prior widening
+  in this file's history (13/16). New "15 — Succession Planning" Data
+  Refresh card (3 sheets, delete+insert like `recruitment`/`diversity` —
+  a full roster snapshot, not an accumulating table). One real bug caught
+  before it ever reached the live database: the Data Refresh panel's
+  generic replace logic deletes-then-inserts each of a multi-sheet upload's
+  sheets **sequentially** (not all-deletes-then-all-inserts), so a
+  re-upload's delete of `critical_positions` would hit a foreign-key
+  violation against the OLD `incumbents`/`successors` rows still pointing
+  at it (they aren't cleared until their own sheet's turn comes later in
+  the same upload) — fixed with `on delete cascade` on both tables'
+  `position_id` foreign keys.
 - **Phase I — Probation & PIP (new module)**: new tables for probation
   forms and PIP records (3-month + 6-month milestones); new page with
   probation success rate and PIP enrollment/success rates at both
@@ -285,6 +322,23 @@ app/
                            base_salary's FK convention instead). See the
                            Payroll Report gotcha below for the generation
                            formulas.
+      succession.js         "Succession Planning" (own nav group, one page).
+                           Synthetic critical-positions roster (45 positions,
+                           step-sampled from active Managerial/Executive
+                           employees) joined to its `incumbents`/`successors`
+                           rows via `db.criticalPositionsIndex` (keyed by
+                           `positionId`, no FK-driven join needed since it's
+                           a small in-memory table) and to `db.employeeIndex`
+                           for names/departments. Successor rows alias their
+                           `successorEmployeeId` to a plain `employeeId`
+                           field before being handed to `chartCard`'s
+                           `drilldown` — `export.js`'s `openPersonDetail`
+                           always looks for `record.employeeId` specifically,
+                           so without the alias, clicking a successor in a
+                           drilldown list wouldn't merge in their
+                           employee_master fields. See the Succession
+                           Planning gotcha below for the generator's
+                           criticality/vacancy/readiness rules.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -299,6 +353,10 @@ app/
                            Actuals refreshes monthly but Cost Centers/Budget/
                            Revenue don't. Payroll ("14 — Payroll Report") is
                            its own card too, upserted by (employee_id, period).
+                           Succession Planning ("15 — Succession Planning")
+                           bundles its 3 sheets into one card (like Attendance
+                           Violations' 2), delete+insert — a full roster
+                           snapshot, not an accumulating table.
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -322,9 +380,18 @@ scripts/
                          base_salary/total_rewards CSVs -> payroll.csv,
                          re-runnable but reshuffles all random draws),
                          build_payroll_workbook.ps1 (CSV -> Database/14_Payroll_Report.xlsx)
+  succession-data/      Succession Planning's one-time synthetic-from-scratch
+                         generator (see Succession Planning gotcha below):
+                         generate_succession_data.ps1 (reads employee_master.csv
+                         -> critical_positions/incumbents/successors CSVs —
+                         deliberately deterministic, no Get-Random, unlike
+                         payroll's generator, so re-running reproduces the
+                         same 45-position roster instead of reshuffling it),
+                         build_succession_workbook.ps1 (CSVs ->
+                         Database/15_Succession_Planning.xlsx, 3 sheets)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 15 so far — see below)
+                         NUMBER ORDER (01 through 18 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -351,13 +418,14 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
 2. **Section access** — `user_access` table: `full_access` (bool, sees
    everything) or `sections` (`text[]` of page ids: `exec`, `headcount`,
    `recruitment`, `newhires`, `diversity`, `compensation`, `attrition`,
-   `leave`, `performance`, `training`, `attendance`, `ctc`, `payroll`). Each
-   data table has a `"sectioned read"` RLS policy scoped to whichever
-   sections legitimately read that table client-side (see the table-to-section
-   map hardcoded in both `data.js`'s `SECTION_TABLES` and
+   `leave`, `performance`, `training`, `attendance`, `ctc`, `payroll`,
+   `succession`). Each data table has a `"sectioned read"` RLS policy scoped
+   to whichever sections legitimately read that table client-side (see the
+   table-to-section map hardcoded in both `data.js`'s `SECTION_TABLES` and
    `06_section_based_access.sql`/`11_attendance_violations.sql`/
    `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`/
-   `16_phase_d_access.sql` — keep these in sync if any changes).
+   `16_phase_d_access.sql`/`18_succession_planning.sql` — keep these in sync
+   if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
    `exec` is broader than it looks. Same reasoning behind why `recruitment`
@@ -435,6 +503,22 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     no follow-up data load needed except `budgeted_positions`' seed insert,
     which the migration does itself. See CLAUDE.md's Phase F writeup above
     for the per-column reasoning.
+18. `18_succession_planning.sql` — Power BI Parity Round 2, Phase H: new
+    `critical_positions`/`incumbents`/`successors` tables for the new
+    `succession` section (sectioned read, admin insert/update/delete — no
+    upsert key, full delete+insert replace like `recruitment`/`diversity`),
+    plus widening `employee_master`'s sectioned-read policy to include
+    `succession`. `incumbents`/`successors.position_id` are `on delete
+    cascade` — **required**, not just tidy: the Data Refresh panel's
+    generic multi-sheet replace logic deletes-then-inserts each sheet
+    sequentially, so without cascade a re-upload's delete of
+    `critical_positions` would hit a foreign-key violation against the OLD
+    `incumbents`/`successors` rows still pointing at it. No data to load
+    beyond the table creation — see the "15 — Succession Planning" Data
+    Refresh card and `scripts/succession-data/` for the synthetic roster.
+    (Note: if Phase G's `18_phase_g.sql` merges before this one, one of the
+    two needs renumbering to 19 — both were authored in parallel against the
+    same pre-Phase-G/H `main`.)
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -652,6 +736,54 @@ locally → verify on Render.
   Seeded into Supabase the same way every other table is: no one-off seed
   script, just the "14 — Payroll Report" Data Refresh card once the
   migration and workbook both exist.
+- **Succession Planning (`Database/15_Succession_Planning.xlsx`) is
+  synthetic from day one** — same philosophy as Payroll/Attendance
+  Violations, not the CTC Report module's real-data-then-resynthesize
+  approach. Generated by `scripts/succession-data/generate_succession_data.ps1`
+  (reads `supabase/csv/employee_master.csv` only — no live Supabase access
+  needed) then `build_succession_workbook.ps1` (CSVs → 3-sheet workbook,
+  reusing `build_ctc_workbook.ps1`'s `Write-SheetFromRows` helper verbatim).
+  Unlike every other synthetic-data script in this app, this one is
+  **deliberately deterministic** (no `Get-Random` anywhere) — a succession
+  roster reads better as a stable, explainable selection than as reshuffled
+  dice rolls, so re-running it reproduces the exact same 45 positions.
+  - **Critical positions**: step-sampled from the 174 active
+    Managerial/Executive employees down to 45, spread across all 13
+    departments by construction (sampled in `employee_id` order at a fixed
+    stride, not grouped by department first). `criticality` is read off the
+    position_title text itself — "Chief Officer"/"Head of Department" →
+    Critical, "Senior Manager" → High, else Medium — a deterministic,
+    explainable rule rather than an arbitrary label.
+  - **Incumbents**: every 7th sampled position (~14%) is left vacant on
+    purpose (`employee_id` null, no `time_in_role_years`/`retirement_risk`) —
+    a real succession plan always has some open critical seats.
+    `retirement_risk` is age-banded (55+ High, 45–54 Medium, else Low) — age
+    is the only field in this schema close to a real retirement-risk signal.
+  - **Successors**: coverage deliberately varies 0/1/2/1 per position in a
+    fixed rotation, so ~1 in 4 positions has NO named successor (a genuine,
+    visible succession gap — 100% coverage wouldn't read as a believable
+    roster). Candidates are drawn from active Supervisory/Managerial
+    employees in the SAME department as the position, excluding the
+    incumbent. `readiness` is banded off the candidate's own tenure (3+ yrs
+    → Ready Now, 1.5–3 → Ready 1-2 Years, 0.5–1.5 → Ready 3-5 Years, else Not
+    Ready). The 1st successor (when any are named) is always the
+    longest-tenured candidate in the pool — a defensible "top pick" rule,
+    and also the one flagged `is_high_potential`. The 2nd successor (only
+    named when a position gets 2) is deliberately **not** the 2nd-longest-
+    tenured candidate — that flattened almost every pick into "Ready Now,"
+    since this department's Supervisory/Managerial tenure skews long. It's
+    instead drawn from a rotating depth into the rest of the pool (30/55/80/
+    95% of the way down, cycling by position index), which is what actually
+    produces a spread across the Readiness bands in the final dataset (34
+    Ready Now, 9 Ready 1-2 Years, 2 Ready 3-5 Years, out of 45 total —
+    "Not Ready" never comes up in this particular roster, which is fine).
+  - `incumbents.position_id`/`successors.position_id` are `on delete
+    cascade` (see `18_succession_planning.sql`) — **not just tidy, required**
+    for the Data Refresh card to survive a second upload: see the migration's
+    own comment and the note under migration 18 above for why.
+  - Seeded into Supabase the same way as Payroll: no one-off seed script,
+    just the "15 — Succession Planning" Data Refresh card once the migration
+    and workbook both exist.
 - **Zee (`app/js/zee.js` + `supabase/functions/zee-chat/index.ts`) has ZERO
   database access by design** — this is deliberate, not an oversight, and is
   what makes "Zee won't answer about modules you don't have access to" true
@@ -738,9 +870,11 @@ locally → verify on Render.
     Training, Performance, Attrition — no new tables, two RLS widenings),
     Phase E (Underpaid & Overpaid Analysis, a new page reusing Compensation's
     existing base_salary/salary_structure join, no new tables or access
-    grants), and, out of order ahead of Phase E but landed the same day
-    (built in a parallel session), Phase F (modest schema additions —
-    `approval_status`, a 3rd `workforce_category` value, `annual_leave_cost`,
-    training expiry/compliance tracking, NHP's Required Date, `grade_tier`,
-    and the new `budgeted_positions` table) — see "Power BI Parity — Round 2"
-    above
+    grants), out of order ahead of Phase E but landed the same day (built in
+    a parallel session) Phase F (modest schema additions — `approval_status`,
+    a 3rd `workforce_category` value, `annual_leave_cost`, training expiry/
+    compliance tracking, NHP's Required Date, `grade_tier`, and the new
+    `budgeted_positions` table), and Phase H (Succession Planning, a new
+    module and nav group — `critical_positions`/`incumbents`/`successors`,
+    synthetic from day one, also built in its own parallel session) — see
+    "Power BI Parity — Round 2" above

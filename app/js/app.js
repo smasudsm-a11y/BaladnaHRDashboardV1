@@ -21,6 +21,7 @@ import * as ctcExpenseCategory from "./pages/ctc-expense-category.js";
 import * as ctcVarianceExplorer from "./pages/ctc-variance-explorer.js";
 import * as ctcYearOnYear from "./pages/ctc-year-on-year.js";
 import * as payroll from "./pages/payroll.js";
+import * as succession from "./pages/succession.js";
 import * as manageAccess from "./pages/admin.js";
 import * as dataRefresh from "./pages/data-refresh.js";
 import * as ctcConverter from "./pages/ctc-converter.js";
@@ -34,6 +35,7 @@ const NAV = [
   { group: "Compliance", pages: [attendanceViolations] },
   { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
   { group: "Payroll Report", pages: [payroll] },
+  { group: "Succession Planning", pages: [succession] },
 ];
 
 const pagesById = new Map();
