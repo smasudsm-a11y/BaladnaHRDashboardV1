@@ -19,13 +19,14 @@ whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
 (below) is the fix for that gap, phased and written down this time
 specifically so it doesn't have to be redone from scratch again. Phase D, E,
-F, G, and H are done as of this note (F was built out of order, ahead of E,
-per explicit user request — both landed the same day in parallel sessions,
-so the order didn't end up mattering; G and H were likewise both built in
-their own parallel sessions and merged in sequence, G after H, which is why
-G's migration is numbered 19 despite following Phase F's 17 rather than
-slotting in at 18 — 18 went to H's `18_succession_planning.sql` first);
-Phases I–L remain. If you need the original screenshots again anyway (e.g.
+F, G, H, and I are done as of this note (F was built out of order, ahead of
+E, per explicit user request — both landed the same day in parallel
+sessions, so the order didn't end up mattering; G and H were likewise both
+built in their own parallel sessions and merged in sequence, G after H,
+which is why G's migration is numbered 19 despite following Phase F's 17
+rather than slotting in at 18 — 18 went to H's
+`18_succession_planning.sql` first); Phases J–L remain. If you need the
+original screenshots again anyway (e.g.
 to re-verify a phase after it's built), ask the user — they aren't stored
 in this repo.
 
@@ -200,10 +201,53 @@ later phases depend on earlier ones' tables existing.
   at it (they aren't cleared until their own sheet's turn comes later in
   the same upload) — fixed with `on delete cascade` on both tables'
   `position_id` foreign keys.
-- **Phase I — Probation & PIP (new module)**: new tables for probation
-  forms and PIP records (3-month + 6-month milestones); new page with
-  probation success rate and PIP enrollment/success rates at both
-  milestones. Synthetic from day one.
+- **Phase I — done** (built 2026-08-16). Probation & PIP, a new module and
+  nav group, synthetic from day one (see `20_probation_pip.sql` and
+  `scripts/probation-pip-data/` — same philosophy as Succession Planning).
+  2 new tables, matching the phase's own plan:
+  - `probation_reviews`: one row per employee — the **full** 1,510-employee
+    population (matching this app's other historical tables like
+    attrition/leave, not a narrow "currently onboarding" slice), review
+    date = hire date + 90 days. Outcome is derived from real signals, not
+    assigned arbitrarily: terminated within the 90-day window → Not
+    Confirmed (22, 1.5%); not terminated early but their earliest recorded
+    performance rating was Below Expectations → Extended (47, 3.1%);
+    otherwise → Confirmed (1,441, 95.4%).
+  - `pip_records`: one row per employee whose most recent recorded
+    performance rating was Below Expectations (127 of the ~1,235 employees
+    with any performance history). `pip_start_date` = that review date + 3
+    weeks. Both milestones are derived from whatever real signal follows —
+    a later annual performance cycle's rating, or an early termination —
+    not random: terminated within 90 days of PIP start → both milestones
+    Terminated; terminated within 180 days → 3-month Not Improved, 6-month
+    Terminated; a later cycle exists and is still Below Expectations → both
+    Not Improved; a later cycle exists and improved → 3-month Improved,
+    6-month Completed Successfully; **no later cycle exists at all** (the
+    triggering review was their most recent, e.g. a 2025 rating with no
+    2026 cycle in this dataset yet) and no qualifying termination → both
+    milestones default to a positive outcome (the only fallback this
+    annual-cycle data supports — flagged here rather than hidden, since it
+    does inflate the headline success rate: of 127 records, 110 land
+    Improved/Completed Successfully, but a meaningful share of those are
+    this "benefit of the doubt" fallback rather than a verified improved
+    rating, particularly for anyone whose trigger was a 2025 cycle).
+  - Real bug caught mid-build, same class as Phase H's: PowerShell's
+    `[array]::IndexOf($hist, $trigger)` throws when `$hist` collapses to a
+    scalar (an employee with exactly one performance record) instead of a
+    1-element array — fixed by forcing `@($hist)` first. Every one of the
+    127 PIP records had silently fallen through to the positive-outcome
+    fallback before this fix, since the exception left the "next cycle"
+    lookup permanently unset.
+  - New page `probation-pip.js`: Probation Reviews/Success Rate/Extended
+    KPIs + Outcome breakdown (by department, and a by-hire-year trend);
+    PIP Enrollments/3-Month/6-Month Success Rate KPIs + enrollment-by-
+    department and both milestone-outcome charts, plus a PIP Records
+    detail table. New `probation-pip` section id (auto-appears in Manage
+    Access) and one RLS widening: `employee_master`'s sectioned-read policy
+    now includes `probation-pip`, same reasoning as every prior widening.
+    New "16 — Probation & PIP" Data Refresh card (2 sheets, delete+insert
+    like Succession Planning — a full roster snapshot, not an accumulating
+    table).
 - **Phase J — Employee Satisfaction / eNPS (new module)**: new tables for
   exit-survey responses and stage-gate scores (Interview/Recruiting/
   Onboarding/Probation); new page with the eNPS gauge + detractor/neutral/
@@ -356,6 +400,18 @@ app/
                            employee_master fields. See the Succession
                            Planning gotcha below for the generator's
                            criticality/vacancy/readiness rules.
+      probation-pip.js      "Probation & PIP" (own nav group, one page).
+                           Two independent tables (`probation_reviews`
+                           covers the full employee population, `pip_records`
+                           only the 127 who were ever rated Below
+                           Expectations) both joined to `db.employeeIndex`
+                           for names/departments, same shape as Attendance
+                           Violations' two-table page. Year filter applies
+                           each table's own relevant date
+                           (`probationStartDate` vs. `pipStartDate`), not a
+                           shared date field. See the Probation & PIP
+                           gotcha below for how outcomes/milestones are
+                           derived from real fields.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -373,7 +429,9 @@ app/
                            Succession Planning ("15 — Succession Planning")
                            bundles its 3 sheets into one card (like Attendance
                            Violations' 2), delete+insert — a full roster
-                           snapshot, not an accumulating table.
+                           snapshot, not an accumulating table. Probation &
+                           PIP ("16 — Probation & PIP") bundles its 2 sheets
+                           the same way.
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -406,9 +464,17 @@ scripts/
                          same 45-position roster instead of reshuffling it),
                          build_succession_workbook.ps1 (CSVs ->
                          Database/15_Succession_Planning.xlsx, 3 sheets)
+  probation-pip-data/   Probation & PIP's one-time synthetic-from-scratch
+                         generator (see Probation & PIP gotcha below):
+                         generate_probation_pip_data.ps1 (reads
+                         employee_master.csv/performance.csv ->
+                         probation_reviews/pip_records CSVs — deterministic
+                         like succession-data's, every outcome derived from
+                         a real field, not a dice roll), build_probation_pip_workbook.ps1
+                         (CSVs -> Database/16_Probation_PIP.xlsx, 2 sheets)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 19 so far — see below)
+                         NUMBER ORDER (01 through 20 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -436,12 +502,13 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    everything) or `sections` (`text[]` of page ids: `exec`, `headcount`,
    `recruitment`, `newhires`, `diversity`, `compensation`, `attrition`,
    `leave`, `performance`, `training`, `attendance`, `ctc`, `payroll`,
-   `succession`). Each data table has a `"sectioned read"` RLS policy scoped
-   to whichever sections legitimately read that table client-side (see the
-   table-to-section map hardcoded in both `data.js`'s `SECTION_TABLES` and
-   `06_section_based_access.sql`/`11_attendance_violations.sql`/
-   `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`/
-   `16_phase_d_access.sql`/`18_succession_planning.sql`/`19_phase_g.sql` —
+   `succession`, `probation-pip`). Each data table has a `"sectioned read"`
+   RLS policy scoped to whichever sections legitimately read that table
+   client-side (see the table-to-section map hardcoded in both `data.js`'s
+   `SECTION_TABLES` and `06_section_based_access.sql`/
+   `11_attendance_violations.sql`/`12_ctc_report.sql`/
+   `13_newhires_salary_access.sql`/`15_payroll.sql`/`16_phase_d_access.sql`/
+   `18_succession_planning.sql`/`19_phase_g.sql`/`20_probation_pip.sql` —
    keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
@@ -542,6 +609,14 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     it merged into `main` after Phase H, which had already claimed 18. See
     CLAUDE.md's Phase G writeup above for the target values and the
     `targetDelta()` helper.
+20. `20_probation_pip.sql` — Power BI Parity Round 2, Phase I: new
+    `probation_reviews`/`pip_records` tables for the new `probation-pip`
+    section (sectioned read, admin insert/update/delete — no upsert key,
+    full delete+insert replace like Succession Planning's tables), plus
+    widening `employee_master`'s sectioned-read policy to include
+    `probation-pip`. No data to load beyond the table creation — see the
+    "16 — Probation & PIP" Data Refresh card and `scripts/probation-pip-data/`
+    for the synthetic roster.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -807,6 +882,58 @@ locally → verify on Render.
   - Seeded into Supabase the same way as Payroll: no one-off seed script,
     just the "15 — Succession Planning" Data Refresh card once the migration
     and workbook both exist.
+- **Probation & PIP (`Database/16_Probation_PIP.xlsx`) is synthetic from
+  day one** — same philosophy as Succession Planning. Generated by
+  `scripts/probation-pip-data/generate_probation_pip_data.ps1` (reads
+  `employee_master.csv`/`performance.csv` only) then
+  `build_probation_pip_workbook.ps1` (CSVs → 2-sheet workbook, reusing
+  `build_ctc_workbook.ps1`'s `Write-SheetFromRows` helper verbatim,
+  including its Text-format-before-assignment date gotcha for
+  `ProbationStartDate`/`ReviewDate`/`PIPStartDate`). Deterministic, like
+  Succession Planning's generator — every outcome below comes from a real
+  field, not a random draw.
+  - **Probation reviews** cover the full 1,510-employee population (unlike
+    Succession Planning's curated 45-position sample) — review date = hire
+    date + 90 days. Outcome: terminated within that window → Not Confirmed
+    (22, 1.5%); not terminated early but their earliest recorded
+    performance rating was Below Expectations → Extended (47, 3.1%);
+    otherwise → Confirmed (1,441, 95.4%).
+  - **PIP records** cover only the 127 employees whose most recent
+    recorded performance rating was Below Expectations (out of ~1,235 with
+    any performance history at all — performance.csv only has 2023/2024/
+    2025 Annual cycles, so "most recent" means their latest cycle, not
+    necessarily 2025's). `pip_start_date` = that review's date + 3 weeks.
+    Both milestones (`month3_status`, `month6_status`) are derived from
+    whichever real signal follows: a later annual cycle's rating (improved
+    → 3-month Improved/6-month Completed Successfully; still Below
+    Expectations → both Not Improved), or an early termination (within 90
+    days of PIP start → both Terminated; within 180 days → 3-month Not
+    Improved/6-month Terminated). **If no later cycle exists at all**
+    (their trigger was already their most recent recorded cycle — true for
+    every 2025-triggered PIP, since there's no 2026 performance data yet)
+    **and no qualifying termination**, both milestones default to a
+    positive outcome — the only fallback this annual-cycle data supports.
+    This is flagged here rather than hidden because it does inflate the
+    headline numbers: of 127 PIP records, 110 land Improved/Completed
+    Successfully, but a real share of those are this benefit-of-the-doubt
+    fallback rather than a verified improved rating. If this ever needs a
+    more conservative story, the fix is either extending performance.csv's
+    cycle range or having the fallback resolve to something less generous.
+  - **Real bug caught mid-build**, same class as a PowerShell gotcha
+    documented elsewhere in this file: `[array]::IndexOf($hist, $trigger)`
+    throws when `$hist` (an employee's performance-cycle history) collapses
+    to a bare scalar instead of a 1-element array — which PowerShell does
+    whenever a collection literally has one item. Every one of the 127 PIP
+    records had silently fallen through to the positive-outcome fallback
+    before this was caught and fixed by forcing `@($hist)` first — the
+    thrown exception left the "next cycle" lookup variable permanently
+    unset, and PowerShell's default non-terminating error handling let the
+    loop carry on regardless. Re-run and re-check the outcome distribution
+    (`Group-Object Month3Status`/`Month6Status`) after touching this script,
+    since a regression here wouldn't throw a visible top-level error.
+  - Seeded into Supabase the same way as Succession Planning: no one-off
+    seed script, just the "16 — Probation & PIP" Data Refresh card once the
+    migration and workbook both exist.
 - **Zee (`app/js/zee.js` + `supabase/functions/zee-chat/index.ts`) has ZERO
   database access by design** — this is deliberate, not an oversight, and is
   what makes "Zee won't answer about modules you don't have access to" true
@@ -901,6 +1028,8 @@ locally → verify on Render.
     surfacing a target/delta line on Attrition, Executive, and Leave &
     Absence's rate KPIs), and Phase H (Succession Planning, a new module
     and nav group — `critical_positions`/`incumbents`/`successors`,
-    synthetic from day one) — G and H were both built in their own
-    parallel sessions and merged in sequence (H first, hence G's migration
-    landing on 19 instead of 18) — see "Power BI Parity — Round 2" above
+    synthetic from day one; G and H were both built in their own parallel
+    sessions and merged in sequence, H first, hence G's migration landing
+    on 19 instead of 18), and Phase I (Probation & PIP, a new module and
+    nav group — `probation_reviews`/`pip_records`, synthetic from day one)
+    — see "Power BI Parity — Round 2" above
