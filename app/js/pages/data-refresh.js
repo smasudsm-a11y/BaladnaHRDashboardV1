@@ -297,6 +297,28 @@ const UPLOAD_UNITS = [
       },
     }],
   },
+  {
+    id: "probation_pip", fileLabel: "16 — Probation & PIP",
+    sheets: [
+      {
+        // Delete+insert, not upserted — a point-in-time roster snapshot
+        // (see 20_probation_pip.sql), same reasoning as Succession Planning.
+        sheetName: "Probation Reviews Data", table: "probation_reviews",
+        dateFields: ["probation_start_date", "review_date"],
+        fields: {
+          "Employee ID": "employee_id", "Probation Start Date": "probation_start_date",
+          "Review Date": "review_date", "Outcome": "outcome",
+        },
+      },
+      {
+        sheetName: "PIP Records Data", table: "pip_records", dateFields: ["pip_start_date"],
+        fields: {
+          "Employee ID": "employee_id", "PIP Start Date": "pip_start_date", "Reason": "reason",
+          "Month 3 Status": "month3_status", "Month 6 Status": "month6_status",
+        },
+      },
+    ],
+  },
 ];
 
 function toIsoDate(v) {
