@@ -319,6 +319,27 @@ const UPLOAD_UNITS = [
       },
     ],
   },
+  {
+    id: "enps", fileLabel: "18 — Employee Satisfaction",
+    sheets: [
+      {
+        // Delete+insert, not upserted — a point-in-time roster snapshot
+        // (see 21_enps.sql), same reasoning as Succession Planning/
+        // Probation & PIP.
+        sheetName: "Exit Surveys Data", table: "exit_surveys", dateFields: ["survey_date"],
+        fields: {
+          "Employee ID": "employee_id", "Survey Date": "survey_date", "eNPS Score": "enps_score",
+          "eNPS Category": "enps_category", "Would Recommend": "would_recommend",
+        },
+      },
+      {
+        sheetName: "Stage Gate Scores Data", table: "stage_gate_scores", dateFields: ["score_date"],
+        fields: {
+          "Employee ID": "employee_id", "Stage": "stage", "Score": "score", "Score Date": "score_date",
+        },
+      },
+    ],
+  },
 ];
 
 function toIsoDate(v) {

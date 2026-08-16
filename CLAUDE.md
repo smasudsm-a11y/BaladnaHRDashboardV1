@@ -19,14 +19,14 @@ whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
 (below) is the fix for that gap, phased and written down this time
 specifically so it doesn't have to be redone from scratch again. Phase D, E,
-F, G, H, and I are done as of this note (F was built out of order, ahead of
-E, per explicit user request — both landed the same day in parallel
-sessions, so the order didn't end up mattering; G and H were likewise both
-built in their own parallel sessions and merged in sequence, G after H,
-which is why G's migration is numbered 19 despite following Phase F's 17
-rather than slotting in at 18 — 18 went to H's
-`18_succession_planning.sql` first); Phases J–L remain. If you need the
-original screenshots again anyway (e.g.
+F, G, H, I, and J are all done as of this note. Several were built in
+parallel sessions with no fixed merge order, which is why the migration
+numbers don't track the phase letters: F landed ahead of E the same day; G
+and H merged in sequence (H first, hence G's migration landing on 19
+instead of 18 — 18 went to H's `18_succession_planning.sql`); I and J
+likewise merged in sequence (I first, hence J's migration landing on 21
+instead of 20 — 20 went to I's `20_probation_pip.sql`). Phases K, L remain.
+If you need the original screenshots again anyway (e.g.
 to re-verify a phase after it's built), ask the user — they aren't stored
 in this repo.
 
@@ -248,11 +248,42 @@ later phases depend on earlier ones' tables existing.
     New "16 — Probation & PIP" Data Refresh card (2 sheets, delete+insert
     like Succession Planning — a full roster snapshot, not an accumulating
     table).
-- **Phase J — Employee Satisfaction / eNPS (new module)**: new tables for
-  exit-survey responses and stage-gate scores (Interview/Recruiting/
-  Onboarding/Probation); new page with the eNPS gauge + detractor/neutral/
-  promoter split and Employee Lifecycle Score + trend. Synthetic from day
-  one. Employee Lifecycle Score also feeds Phase L below.
+- **Phase J — done** (built 2026-08-16). Employee Satisfaction / eNPS, a
+  new module and nav group, synthetic from day one (see `21_enps.sql` and
+  `scripts/enps-data/` — same philosophy as Succession Planning/Probation &
+  PIP). 2 new tables, matching the phase's own plan:
+  - `exit_surveys`: one row per attrition record (588) — an eNPS score
+    (0–10, standard NPS scale) read off `termination_reason`, not assigned
+    arbitrarily: voluntary/growth-motivated exits score highest
+    (Resignation - Better Opportunity → 9), involuntary/disciplinary exits
+    score lowest (Termination - Disciplinary → 1). Bucketed the usual NPS
+    way (9–10 Promoter, 7–8 Passive, 0–6 Detractor) → 113 Promoters, 250
+    Passives, 225 Detractors, eNPS ≈ −19 (a negative eNPS is realistic here,
+    not a bug — exit surveys structurally skew negative since only people
+    who just left take them).
+  - `stage_gate_scores`: 4 rows per employee (Interview/Recruiting/
+    Onboarding/Probation — the full 1,510-employee population, 6,040 rows
+    total), all 4 derived from the SAME base signal — whether that employee
+    was terminated within their own 90-day probation window (the same
+    early-termination proxy Phase I's `probation_reviews` uses, reproduced
+    directly from `employee_master`/`attrition` here rather than reading
+    Phase I's generated CSV, so this generator doesn't depend on Phase I's
+    branch having merged first) — with a fixed per-stage offset (Interview
+    +1.5, Recruiting +1.0, Onboarding +0.5, Probation +0) modeling the
+    well-documented "honeymoon cools toward probation" pattern rather than
+    4 independent random draws. Employee Lifecycle Score (avg across all 4
+    stages) comes out to ≈8.6 for this roster.
+  - New page `enps.js`: eNPS KPI (colored good/warn/bad) + Promoter/
+    Passive/Detractor split (the "gauge" from Power BI's report is
+    approximated as a KPI card + doughnut, since this app's chart toolkit
+    has no literal gauge widget — same "approximate the visual type with
+    what's available" approach as every other Power BI-parity page) + eNPS
+    trend by exit year + eNPS by department; Employee Lifecycle Score KPI +
+    by-stage breakdown + trend by hire year. New `enps` section id
+    (auto-appears in Manage Access) and one RLS widening: `employee_master`'s
+    sectioned-read policy now includes `enps`. New "18 — Employee
+    Satisfaction" Data Refresh card (2 sheets, delete+insert like the other
+    Round 2 new-module tables).
 - **Phase K — Headcount Forecast (new module, synthetic — not real ML)**:
   no actual forecasting model (this is a static site with no backend
   compute to train one) — generate a synthetic Actual/Forecast/Lower-Bound/
@@ -412,6 +443,18 @@ app/
                            shared date field. See the Probation & PIP
                            gotcha below for how outcomes/milestones are
                            derived from real fields.
+      enps.js               "Employee Satisfaction" (own nav group, one
+                           page). Two independent tables, both joined to
+                           `db.employeeIndex` for names/departments:
+                           `exit_surveys` (588 rows, one per attrition
+                           record) powers the eNPS KPI/split/trend;
+                           `stage_gate_scores` (6,040 rows, 4 per employee)
+                           powers the Employee Lifecycle Score KPI/by-stage
+                           breakdown/trend. The eNPS "gauge" from Power BI's
+                           report is approximated as a KPI card + doughnut
+                           (this app's chart toolkit has no literal gauge
+                           widget). See the Employee Satisfaction gotcha
+                           below for how scores are derived.
       admin.js            "Manage Access" — checkbox grid over all users
                            (full_access / is_admin / per-section), auto-saves
                            on change, id: "admin"
@@ -430,8 +473,9 @@ app/
                            bundles its 3 sheets into one card (like Attendance
                            Violations' 2), delete+insert — a full roster
                            snapshot, not an accumulating table. Probation &
-                           PIP ("16 — Probation & PIP") bundles its 2 sheets
-                           the same way.
+                           PIP ("16 — Probation & PIP") and Employee
+                           Satisfaction ("18 — Employee Satisfaction") each
+                           bundle their own 2 sheets the same way.
       ctc-converter.js     "CTC Data Converter" (admin-only utility, not a
                            dashboard page) — reshapes Finance's raw monthly
                            Actuals export (GL rows x Cost Center columns) into
@@ -472,9 +516,21 @@ scripts/
                          like succession-data's, every outcome derived from
                          a real field, not a dice roll), build_probation_pip_workbook.ps1
                          (CSVs -> Database/16_Probation_PIP.xlsx, 2 sheets)
+  enps-data/            Employee Satisfaction / eNPS's one-time synthetic-
+                         from-scratch generator (see Employee Satisfaction
+                         gotcha below): generate_enps_data.ps1 (reads
+                         employee_master.csv/attrition.csv ->
+                         exit_surveys/stage_gate_scores CSVs — deterministic
+                         like the other Round 2 generators; deliberately
+                         re-derives its own early-termination signal from
+                         employee_master/attrition rather than reading
+                         Phase I's probation_reviews.csv, so this generator
+                         doesn't depend on that phase's branch having
+                         merged first), build_enps_workbook.ps1 (CSVs ->
+                         Database/17_Employee_Satisfaction.xlsx, 2 sheets)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 20 so far — see below)
+                         NUMBER ORDER (01 through 21 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -502,14 +558,14 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    everything) or `sections` (`text[]` of page ids: `exec`, `headcount`,
    `recruitment`, `newhires`, `diversity`, `compensation`, `attrition`,
    `leave`, `performance`, `training`, `attendance`, `ctc`, `payroll`,
-   `succession`, `probation-pip`). Each data table has a `"sectioned read"`
-   RLS policy scoped to whichever sections legitimately read that table
-   client-side (see the table-to-section map hardcoded in both `data.js`'s
-   `SECTION_TABLES` and `06_section_based_access.sql`/
+   `succession`, `probation-pip`, `enps`). Each data table has a
+   `"sectioned read"` RLS policy scoped to whichever sections legitimately
+   read that table client-side (see the table-to-section map hardcoded in
+   both `data.js`'s `SECTION_TABLES` and `06_section_based_access.sql`/
    `11_attendance_violations.sql`/`12_ctc_report.sql`/
    `13_newhires_salary_access.sql`/`15_payroll.sql`/`16_phase_d_access.sql`/
-   `18_succession_planning.sql`/`19_phase_g.sql`/`20_probation_pip.sql` —
-   keep these in sync if any changes).
+   `18_succession_planning.sql`/`19_phase_g.sql`/`20_probation_pip.sql`/
+   `21_enps.sql` — keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
    `exec` is broader than it looks. Same reasoning behind why `recruitment`
@@ -617,6 +673,16 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     `probation-pip`. No data to load beyond the table creation — see the
     "16 — Probation & PIP" Data Refresh card and `scripts/probation-pip-data/`
     for the synthetic roster.
+21. `21_enps.sql` — Power BI Parity Round 2, Phase J: new `exit_surveys`/
+    `stage_gate_scores` tables for the new `enps` section (sectioned read,
+    admin insert/update/delete — no upsert key, full delete+insert replace
+    like the other Round 2 new-module tables), plus widening
+    `employee_master`'s sectioned-read policy to include `enps`. No data to
+    load beyond the table creation — see the "18 — Employee Satisfaction"
+    Data Refresh card and `scripts/enps-data/` for the synthetic roster.
+    Numbered 21 (not 20, which Phase I's `20_probation_pip.sql` claimed
+    first) — both were authored in parallel against the same pre-Phase-I/J
+    `main`.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -934,6 +1000,47 @@ locally → verify on Render.
   - Seeded into Supabase the same way as Succession Planning: no one-off
     seed script, just the "16 — Probation & PIP" Data Refresh card once the
     migration and workbook both exist.
+- **Employee Satisfaction / eNPS (`Database/17_Employee_Satisfaction.xlsx`)
+  is synthetic from day one** — same philosophy as Succession Planning.
+  Generated by `scripts/enps-data/generate_enps_data.ps1` (reads
+  `employee_master.csv`/`attrition.csv` only) then `build_enps_workbook.ps1`
+  (CSVs → 2-sheet workbook, reusing `build_ctc_workbook.ps1`'s
+  `Write-SheetFromRows` helper verbatim). Deterministic, like the other
+  Round 2 generators — every score comes from a real field.
+  - **Exit surveys** cover every attrition record (588) — eNPS score (0–10)
+    read off `termination_reason`: voluntary/growth-motivated exits score
+    highest (Resignation - Better Opportunity → 9), involuntary/
+    disciplinary exits lowest (Termination - Disciplinary → 1). Bucketed
+    the standard NPS way (9–10 Promoter, 7–8 Passive, 0–6 Detractor) →
+    113/250/225, eNPS ≈ −19. **A negative eNPS here is realistic, not a
+    bug** — exit surveys are inherently a skewed sample (only people who
+    just left take them), so a negative score doesn't imply the whole
+    active workforce feels that way; it's a known, expected property of
+    exit-survey-based eNPS specifically.
+  - **Stage-gate scores** cover the full 1,510-employee population, 4 rows
+    each (6,040 total: Interview/Recruiting/Onboarding/Probation). All 4
+    are derived from the SAME base signal per employee — whether they were
+    terminated within their own 90-day probation window — with a fixed
+    per-stage offset (+1.5/+1.0/+0.5/+0) modeling early-lifecycle sentiment
+    cooling toward probation, a real documented HR pattern, rather than 4
+    independent random draws. **Deliberately does NOT read Phase I's
+    `probation_reviews.csv`**, even though it's computing conceptually the
+    same early-termination signal Phase I's `Outcome` column already
+    captures — this generator re-derives it directly from
+    `employee_master`/`attrition` instead, specifically so it has no
+    dependency on Phase I's branch/script having been run first (Phase I
+    and Phase J were built in separate parallel sessions with no
+    guaranteed merge order — see the note under migration 20 above). If
+    the two ever need to agree exactly, this is the one place to check
+    first for drift.
+  - Employee Lifecycle Score (this roster's avg across all 4 stages) comes
+    out to ≈8.6 — a positive number, consistent with ~95% of employees
+    passing probation cleanly (see Phase I's own `probation_reviews`
+    outcome distribution, which this generator's simpler version
+    approximates).
+  - Seeded into Supabase the same way as Succession Planning: no one-off
+    seed script, just the "18 — Employee Satisfaction" Data Refresh card
+    once the migration and workbook both exist.
 - **Zee (`app/js/zee.js` + `supabase/functions/zee-chat/index.ts`) has ZERO
   database access by design** — this is deliberate, not an oversight, and is
   what makes "Zee won't answer about modules you don't have access to" true
@@ -1026,10 +1133,16 @@ locally → verify on Render.
     compliance tracking, NHP's Required Date, `grade_tier`, and the new
     `budgeted_positions` table), Phase G (a small `kpi_targets` table
     surfacing a target/delta line on Attrition, Executive, and Leave &
-    Absence's rate KPIs), and Phase H (Succession Planning, a new module
-    and nav group — `critical_positions`/`incumbents`/`successors`,
-    synthetic from day one; G and H were both built in their own parallel
-    sessions and merged in sequence, H first, hence G's migration landing
-    on 19 instead of 18), and Phase I (Probation & PIP, a new module and
-    nav group — `probation_reviews`/`pip_records`, synthetic from day one)
-    — see "Power BI Parity — Round 2" above
+    Absence's rate KPIs), Phase H (Succession Planning, a new module and
+    nav group — `critical_positions`/`incumbents`/`successors`, synthetic
+    from day one — G and H were both built in their own parallel sessions
+    and merged in sequence, H first, hence G's migration landing on 19
+    instead of 18), Phase I (Probation & PIP, a new module and nav group —
+    `probation_reviews`/`pip_records`, synthetic from day one), and Phase J
+    (Employee Satisfaction/eNPS, a new module and nav group —
+    `exit_surveys`/`stage_gate_scores`, synthetic from day one, eNPS
+    derived from real termination reasons and Employee Lifecycle Score from
+    a reproduced early-termination signal so it has no dependency on Phase
+    I's branch — I and J were likewise both built in their own parallel
+    sessions and merged in sequence, I first, hence J's migration landing
+    on 21 instead of 20) — see "Power BI Parity — Round 2" above
