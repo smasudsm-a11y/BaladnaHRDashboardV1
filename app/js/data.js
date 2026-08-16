@@ -24,6 +24,7 @@ const TABLES = {
   criticalPositions: "critical_positions",
   incumbents: "incumbents",
   successors: "successors",
+  kpiTargets: "kpi_targets",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -32,14 +33,14 @@ const TABLES = {
 // user has no section access to — RLS would return them empty anyway, but there's
 // no reason to pay for the round trip.
 const SECTION_TABLES = {
-  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary"],
+  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets"],
   headcount: ["employee_master", "org_hierarchy"],
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
-  attrition: ["employee_master", "attrition", "performance"],
-  leave: ["leave", "absenteeism", "employee_master", "base_salary"],
+  attrition: ["employee_master", "attrition", "performance", "kpi_targets"],
+  leave: ["leave", "absenteeism", "employee_master", "base_salary", "kpi_targets"],
   performance: ["performance", "employee_master"],
   training: ["training", "employee_master"],
   attendance: ["excess_hours_violations", "article75_violations"],
@@ -99,6 +100,8 @@ export async function loadAll(allowedIds) {
   db.budgetedPositionsIndex = new Map(db.budgetedPositions.map((b) => [b.department, b]));
 
   db.criticalPositionsIndex = new Map(db.criticalPositions.map((p) => [p.positionId, p]));
+
+  db.kpiTargetsIndex = new Map(db.kpiTargets.map((t) => [t.metricId, t]));
 
   db.latestBaseSalary = latestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
   db.latestTotalRewards = latestByEmployee(db.totalRewards, "employeeId", "salaryEffectiveDate");
@@ -214,6 +217,24 @@ export function fmtPct(n, digits = 1) {
 
 export function fmtMoney(n, currency = "QAR") {
   return `${currency} ${Math.round(n).toLocaleString("en-US")}`;
+}
+
+// Phase G (19_phase_g.sql/kpi_targets): a shared good/bad delta line for any
+// KPI card that has a target — computes the comparison generically off
+// `direction` instead of hardcoding a threshold on every page that surfaces
+// one. Returns {} (no delta rendered — kpiCard already treats a falsy delta
+// as "skip it") if this metric has no target row, e.g. a section-restricted
+// user without kpi_targets read access.
+export function targetDelta(db, metricId, actualValue) {
+  const t = db.kpiTargetsIndex?.get(metricId);
+  if (!t) return {};
+  const diff = actualValue - t.targetValue;
+  const meetsTarget = t.direction === "lower_is_better" ? diff <= 0 : diff >= 0;
+  const arrow = diff === 0 ? "●" : diff > 0 ? "▲" : "▼";
+  return {
+    delta: `${arrow} Target: ${fmtPct(t.targetValue)}`,
+    deltaKind: meetsTarget ? "good" : "bad",
+  };
 }
 
 export const REFERENCE_TODAY = "2026-08-02";

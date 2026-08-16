@@ -1,4 +1,4 @@
-import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, barChart, lineChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "leave", label: "Leave & Absence", subtitle: "Leave utilization, liability, and absenteeism" };
@@ -87,8 +87,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Leave Days Taken", value: fmtInt(totalLeaveDays), note: "approved leave, selected period" });
     kpiCard(kpiRow, { label: "Avg Annual Leave Balance", value: fmtDec(avgBalance, 1), note: `days, across ${balances.length} employees` });
     kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(liability) });
-    kpiCard(kpiRow, { label: "Absenteeism Rate — Staff", value: fmtPct(absenceRateStaff), note: "absence hours ÷ est. scheduled hours" });
-    kpiCard(kpiRow, { label: "Absenteeism Rate — Labor", value: fmtPct(absenceRateLabor), note: "absence hours ÷ est. scheduled hours" });
+    kpiCard(kpiRow, { label: "Absenteeism Rate — Staff", value: fmtPct(absenceRateStaff), note: "absence hours ÷ est. scheduled hours", ...targetDelta(db, "absenteeism_rate_staff", absenceRateStaff) });
+    kpiCard(kpiRow, { label: "Absenteeism Rate — Labor", value: fmtPct(absenceRateLabor), note: "absence hours ÷ est. scheduled hours", ...targetDelta(db, "absenteeism_rate_labor", absenceRateLabor) });
     kpiCard(kpiRow, { label: "Lost Workdays", value: fmtInt(lostWorkdays), note: `${fmtInt(totalAbsenceHours)} absence hours` });
     kpiCard(kpiRow, { label: "Unapproved Absences", value: fmtInt(unapprovedAbsences), note: `of ${fmtInt(absRows.length)} total absence records`, deltaKind: unapprovedAbsences > 0 ? "warn" : "good" });
     kpiCard(kpiRow, { label: "Total Working Days", value: fmtInt(totalWorkingDays), note: "active headcount × est. scheduled days" });

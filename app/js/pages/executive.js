@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, fmtInt, fmtPct, fmtMoney, REFERENCE_TODAY } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, fmtInt, fmtPct, fmtMoney, targetDelta, REFERENCE_TODAY } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, noteBanner } from "../charts.js";
 
 export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leadership at-a-glance across the employee lifecycle" };
@@ -68,7 +68,7 @@ export function render({ db, contentEl }) {
     label: "Attrition Rate (TTM)",
     value: fmtPct(attritionRate),
     note: `${voluntary} voluntary · ${involuntary} involuntary`,
-    deltaKind: attritionRate > 15 ? "bad" : "good",
+    ...targetDelta(db, "turnover_rate", attritionRate),
   });
   kpiCard(kpiRow, { label: "Avg Absence Hours / Employee (TTM)", value: fmtInt(avgAbsenceHours), note: `${fmtInt(absTTM.length)} logged absence events` });
   kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(leaveLiability), note: "Unused Annual balance × est. daily rate" });

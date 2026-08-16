@@ -4,7 +4,7 @@ A static HTML/CSS/JS dashboard (no build step, no framework) reading live from
 Supabase, deployed as a Render Static Site. Built incrementally — see "Build
 history" below for what exists and in what order it was added.
 
-## Current status (2026-08-16) — read this first if resuming
+## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
 separate, much larger Power BI suite Group IT built for Power International
@@ -19,13 +19,15 @@ whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
 (below) is the fix for that gap, phased and written down this time
 specifically so it doesn't have to be redone from scratch again. Phase D, E,
-F, and H are done as of this note (F was built out of order, ahead of E, per
-explicit user request — both landed the same day in parallel sessions, so
-the order didn't end up mattering; H similarly built in its own parallel
-session, alongside G — check this section for whether G's merge has landed
-yet if resuming); Phases G (maybe), I–L remain. If you need the original
-screenshots again anyway (e.g. to re-verify a phase after it's built), ask
-the user — they aren't stored in this repo.
+F, G, and H are done as of this note (F was built out of order, ahead of E,
+per explicit user request — both landed the same day in parallel sessions,
+so the order didn't end up mattering; G and H were likewise both built in
+their own parallel sessions and merged in sequence, G after H, which is why
+G's migration is numbered 19 despite following Phase F's 17 rather than
+slotting in at 18 — 18 went to H's `18_succession_planning.sql` first);
+Phases I–L remain. If you need the original screenshots again anyway (e.g.
+to re-verify a phase after it's built), ask the user — they aren't stored
+in this repo.
 
 **Done and merged** (Phases A, B, C, and Payroll):
 - Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
@@ -138,11 +140,26 @@ later phases depend on earlier ones' tables existing.
     seeded directly by the migration). Recruitment's "Vacant Positions" KPI
     (budgeted − active headcount, by department) is now distinct from
     "Open Requisitions" (unclosed requisition count), as planned.
-- **Phase G — Targets/Benchmarks (new small table, cross-cutting)**: a
-  `kpi_targets` table (metric id → target value) surfaced as a delta/target
-  line on every rate KPI that has one in Power BI (turnover, retention,
-  absenteeism, etc.) — touches Attrition, Executive, and Leave & Absence's
-  KPI cards.
+- **Phase G — done** (built 2026-08-16). Targets/Benchmarks: a small,
+  cross-cutting `kpi_targets` table (`19_phase_g.sql` — metric id → label,
+  target value, `direction`, so good/bad is computed generically rather
+  than hardcoded per KPI) surfaced as a delta/target line on 4 rate KPIs
+  across the 3 pages Phase G named: `turnover_rate` (target 10.0%,
+  lower-is-better) on both Attrition's "Overall Attrition Rate" and
+  Executive's "Attrition Rate (TTM)" — the one metric genuinely shared
+  across pages; `retention_rate` (target 90.0%, higher-is-better) on
+  Attrition's "Retention Rate"; `absenteeism_rate_staff`/
+  `absenteeism_rate_labor` (targets 2.5%/4.0%, lower-is-better, split
+  because Leave & Absence's own KPIs are already split Staff vs. Labor) on
+  Leave & Absence. Target values are invented benchmarks (no real Power BI
+  target data exists to reconcile against here, unlike CTC Report) — the
+  shared `targetDelta(db, metricId, actualValue)` helper in `data.js`
+  computes the delta/color generically off `direction`, and returns `{}`
+  (no delta rendered) for a section-restricted user without `kpi_targets`
+  read access, so it degrades safely rather than erroring. New Data Refresh
+  card ("17 — KPI Targets", upserted by `metric_id`, no source workbook —
+  seeded directly by the migration, same pattern as `budgeted_positions`)
+  so targets can be revised without a new migration.
 - **Phase H — done** (built 2026-08-16). Succession Planning, a new module
   and new nav group, synthetic from day one (see `18_succession_planning.sql`
   and `scripts/succession-data/` — same philosophy as Payroll/Attendance
@@ -391,7 +408,7 @@ scripts/
                          Database/15_Succession_Planning.xlsx, 3 sheets)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 18 so far — see below)
+                         NUMBER ORDER (01 through 19 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -424,8 +441,8 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    table-to-section map hardcoded in both `data.js`'s `SECTION_TABLES` and
    `06_section_based_access.sql`/`11_attendance_violations.sql`/
    `12_ctc_report.sql`/`13_newhires_salary_access.sql`/`15_payroll.sql`/
-   `16_phase_d_access.sql`/`18_succession_planning.sql` — keep these in sync
-   if any changes).
+   `16_phase_d_access.sql`/`18_succession_planning.sql`/`19_phase_g.sql` —
+   keep these in sync if any changes).
    Note: `exec` needs read access to attrition/leave/absenteeism/base_salary
    too, since Executive Insights aggregates those client-side — granting
    `exec` is broader than it looks. Same reasoning behind why `recruitment`
@@ -516,9 +533,15 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     `incumbents`/`successors` rows still pointing at it. No data to load
     beyond the table creation — see the "15 — Succession Planning" Data
     Refresh card and `scripts/succession-data/` for the synthetic roster.
-    (Note: if Phase G's `18_phase_g.sql` merges before this one, one of the
-    two needs renumbering to 19 — both were authored in parallel against the
-    same pre-Phase-G/H `main`.)
+19. `19_phase_g.sql` — Power BI Parity Round 2, Phase G: new `kpi_targets`
+    table (sectioned read for `exec`/`attrition`/`leave`, admin insert/
+    update/delete — same pattern as `budgeted_positions`), seeded with 4
+    target rows (`turnover_rate`, `retention_rate`,
+    `absenteeism_rate_staff`, `absenteeism_rate_labor`) by the migration
+    itself. Numbered 19 despite Phase G being the earlier-lettered phase —
+    it merged into `main` after Phase H, which had already claimed 18. See
+    CLAUDE.md's Phase G writeup above for the target values and the
+    `targetDelta()` helper.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -874,7 +897,10 @@ locally → verify on Render.
     a parallel session) Phase F (modest schema additions — `approval_status`,
     a 3rd `workforce_category` value, `annual_leave_cost`, training expiry/
     compliance tracking, NHP's Required Date, `grade_tier`, and the new
-    `budgeted_positions` table), and Phase H (Succession Planning, a new
-    module and nav group — `critical_positions`/`incumbents`/`successors`,
-    synthetic from day one, also built in its own parallel session) — see
-    "Power BI Parity — Round 2" above
+    `budgeted_positions` table), Phase G (a small `kpi_targets` table
+    surfacing a target/delta line on Attrition, Executive, and Leave &
+    Absence's rate KPIs), and Phase H (Succession Planning, a new module
+    and nav group — `critical_positions`/`incumbents`/`successors`,
+    synthetic from day one) — G and H were both built in their own
+    parallel sessions and merged in sequence (H first, hence G's migration
+    landing on 19 instead of 18) — see "Power BI Parity — Round 2" above
