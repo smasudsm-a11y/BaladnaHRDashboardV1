@@ -101,6 +101,19 @@ export function render({ db, contentEl, filtersEl }) {
       { label: "Assigned", data: assignedByGrade, stacked: true },
       { label: "Completed", data: completedByGrade, stacked: true },
     ], stacked: true });
+
+    // Expiry status is a point-in-time snapshot of currently-held compliance
+    // certs, not something scoped to the selected completion period — uses
+    // the unfiltered `enriched` set, same convention as the Completed Courses
+    // Trend chart above.
+    const complianceRows = enriched.filter((t) => t.trainingCategory === "Compliance" && t.complianceStatus);
+    const complianceStatusOrder = ["Expired", "Expiring Soon", "Valid"];
+    const complianceCounts = complianceStatusOrder.map((s) => complianceRows.filter((t) => t.complianceStatus === s).length);
+    const c8 = chartCard(grid, {
+      title: "Compliance Courses by Expiry Status", sub: "Completed Compliance courses, by current cert status",
+      drilldown: { records: complianceRows, matchField: "complianceStatus", db },
+    });
+    doughnutChart(c8, { labels: complianceStatusOrder, data: complianceCounts });
   }
 
   draw();

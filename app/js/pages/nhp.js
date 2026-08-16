@@ -12,7 +12,11 @@ export const meta = {
 const STATUS_ORDER = ["Completed", "In Progress", "Overdue"];
 
 export function render({ db, contentEl }) {
-  const enriched = withEmployeeFields(db, db.training, ["employeeName", "department", "jobGrade"]);
+  // Entity Type and Supervisor are employee_master.legalEntity/lineManagerName
+  // pulled in here — no schema change needed for those two. Required Date is
+  // a genuine new training.requiredDate column (see 17_phase_f.sql), since
+  // it's an onboarding-deadline concept this schema never had before.
+  const enriched = withEmployeeFields(db, db.training, ["employeeName", "department", "jobGrade", "legalEntity", "lineManagerName"]);
   const rows = enriched.filter((t) => t.trainingCategory === "New Hire Program");
 
   const counts = STATUS_ORDER.map((s) => rows.filter((t) => t.completionStatus === s).length);
@@ -57,11 +61,13 @@ export function render({ db, contentEl }) {
       columns: [
         { key: "employeeId", label: "Employee ID" }, { key: "employeeName", label: "Name" },
         { key: "department", label: "Department" }, { key: "completionStatus", label: "Status" }, { key: "completionDate", label: "Completion Date" },
+        { key: "legalEntity", label: "Entity Type" }, { key: "requiredDate", label: "Required Date" }, { key: "lineManagerName", label: "Supervisor" },
       ],
     },
     tableColumns: [
       { key: "employeeName", label: "Employee" }, { key: "department", label: "Department" },
       { key: "jobGrade", label: "Grade" }, { key: "completionStatus", label: "Status" }, { key: "completionDate", label: "Completion Date" },
+      { key: "legalEntity", label: "Entity Type" }, { key: "requiredDate", label: "Required Date" }, { key: "lineManagerName", label: "Supervisor" },
     ],
     tableRows: rows,
   });

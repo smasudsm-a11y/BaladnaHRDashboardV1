@@ -110,6 +110,7 @@ const UPLOAD_UNITS = [
         fields: {
           "Grade": "grade", "Salary Range Minimum": "salary_range_min",
           "Salary Midpoint": "salary_midpoint", "Salary Range Maximum": "salary_range_max",
+          "Grade Tier": "grade_tier",
         },
       },
     ],
@@ -132,7 +133,7 @@ const UPLOAD_UNITS = [
       fields: {
         "Employee ID": "employee_id", "Absence Date": "absence_date", "Absence Type": "absence_type",
         "Absence Hours": "absence_hours", "Paid / Unpaid": "paid_unpaid", "Department": "department",
-        "Manager": "manager",
+        "Manager": "manager", "Approval Status": "approval_status",
       },
     }],
   },
@@ -151,12 +152,13 @@ const UPLOAD_UNITS = [
   {
     id: "training", fileLabel: "11 — Learning & Training Dashboard",
     sheets: [{
-      sheetName: "Training Data", table: "training", dateFields: ["completion_date"],
+      sheetName: "Training Data", table: "training", dateFields: ["completion_date", "expiry_date", "required_date"],
       fields: {
         "Employee ID": "employee_id", "Course Name": "course_name", "Training Category": "training_category",
         "Training Hours": "training_hours", "Training Cost": "training_cost",
         "Completion Status": "completion_status", "Completion Date": "completion_date",
         "Certification Achieved": "certification_achieved",
+        "Expiry Date": "expiry_date", "Compliance Status": "compliance_status", "Required Date": "required_date",
       },
     }],
   },
@@ -233,7 +235,21 @@ const UPLOAD_UNITS = [
         "Employee ID": "employee_id", "Period": "period", "Gross Salary": "gross_salary",
         "Overtime Amount": "overtime_amount", "Total Deductions": "total_deductions",
         "Air Ticket Cost": "air_ticket_cost", "Net Pay": "net_pay",
+        "Annual Leave Cost": "annual_leave_cost",
       },
+    }],
+  },
+  {
+    id: "budgeted_positions", fileLabel: "16 — Budgeted Positions",
+    sheets: [{
+      // Small, rarely-changing department -> headcount-budget lookup (see
+      // 17_phase_f.sql) — upserted by department, same reasoning as
+      // cost_centers. No source Database/*.xlsx workbook exists for this one
+      // (seeded directly by the migration's INSERT); this card exists so
+      // Total Rewards can revise department budgets going forward.
+      sheetName: "Budgeted Positions Data", table: "budgeted_positions", dateFields: [],
+      upsertKey: "department",
+      fields: { "Department": "department", "Budgeted Headcount": "budgeted_headcount" },
     }],
   },
 ];

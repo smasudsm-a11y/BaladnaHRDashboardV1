@@ -20,6 +20,7 @@ const TABLES = {
   ctcBudget: "ctc_budget",
   ctcRevenue: "ctc_revenue",
   payroll: "payroll",
+  budgetedPositions: "budgeted_positions",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -30,7 +31,7 @@ const TABLES = {
 const SECTION_TABLES = {
   exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary"],
   headcount: ["employee_master", "org_hierarchy"],
-  recruitment: ["recruitment", "employee_master"],
+  recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
@@ -90,6 +91,8 @@ export async function loadAll(allowedIds) {
   db.salaryStructureIndex = new Map(db.salaryStructure.map((s) => [s.grade, s]));
 
   db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
+
+  db.budgetedPositionsIndex = new Map(db.budgetedPositions.map((b) => [b.department, b]));
 
   db.latestBaseSalary = latestByEmployee(db.baseSalary, "employeeId", "salaryEffectiveDate");
   db.latestTotalRewards = latestByEmployee(db.totalRewards, "employeeId", "salaryEffectiveDate");

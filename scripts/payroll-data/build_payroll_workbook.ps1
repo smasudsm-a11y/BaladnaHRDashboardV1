@@ -44,7 +44,7 @@ $wb = $excel.Workbooks.Add()
 
 $ws1 = $wb.Worksheets.Item(1)
 $ws1.Name = "Payroll Data"
-Write-SheetFromRows $ws1 @("Employee ID", "Period", "Gross Salary", "Overtime Amount", "Total Deductions", "Air Ticket Cost", "Net Pay") $payroll @("EmployeeID", "Period", "GrossSalary", "OvertimeAmount", "TotalDeductions", "AirTicketCost", "NetPay") @(1)
+Write-SheetFromRows $ws1 @("Employee ID", "Period", "Gross Salary", "Overtime Amount", "Total Deductions", "Air Ticket Cost", "Net Pay", "Annual Leave Cost") $payroll @("EmployeeID", "Period", "GrossSalary", "OvertimeAmount", "TotalDeductions", "AirTicketCost", "NetPay", "AnnualLeaveCost") @(1)
 
 # Only 1 sheet is needed here (unlike the 4-sheet CTC workbook) — drop any
 # extra blank default sheets Workbooks.Add() may have created.

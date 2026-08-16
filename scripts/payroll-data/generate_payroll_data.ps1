@@ -32,6 +32,7 @@ Write-Output "Loading source CSVs..."
 $employees = Import-Csv "$csvDir\employee_master.csv"
 $baseSalaryRows = Import-Csv "$csvDir\base_salary.csv"
 $totalRewardsRows = Import-Csv "$csvDir\total_rewards.csv"
+$leaveRows = Import-Csv "$csvDir\leave.csv"
 
 # Index base_salary / total_rewards by employee, each entry's date pre-parsed
 # and sorted ascending so "latest effective <= period" is a simple scan —
@@ -53,6 +54,19 @@ foreach ($r in $totalRewardsRows) {
   $rewardsByEmp[$r.employee_id] += [PSCustomObject]@{ Date = $d; Allowances = $allowances }
 }
 foreach ($k in @($rewardsByEmp.Keys)) { $rewardsByEmp[$k] = @($rewardsByEmp[$k] | Sort-Object Date) }
+
+# Annual Leave balance history, per employee — same "latest record <= period"
+# pattern, used for the annual_leave_cost column (see 17_phase_f.sql, which
+# backfills this same formula directly in Supabase for rows already loaded;
+# this mirrors it here so a from-scratch regeneration stays in sync).
+$leaveByEmp = @{}
+foreach ($r in $leaveRows) {
+  if ($r.leave_type -ne "Annual") { continue }
+  $d = Parse-ISO $r.leave_start_date
+  if (-not $leaveByEmp.ContainsKey($r.employee_id)) { $leaveByEmp[$r.employee_id] = @() }
+  $leaveByEmp[$r.employee_id] += [PSCustomObject]@{ Date = $d; LeaveBalance = [double]$r.leave_balance }
+}
+foreach ($k in @($leaveByEmp.Keys)) { $leaveByEmp[$k] = @($leaveByEmp[$k] | Sort-Object Date) }
 
 function Get-AsOf($history, $period) {
   $best = $null
@@ -113,6 +127,7 @@ foreach ($e in $employees) {
   if (-not $salaryByEmp.ContainsKey($empId)) { $skipped++; continue }
   $salHist = $salaryByEmp[$empId]
   $rewHist = if ($rewardsByEmp.ContainsKey($empId)) { $rewardsByEmp[$empId] } else { @() }
+  $leaveHist = if ($leaveByEmp.ContainsKey($empId)) { $leaveByEmp[$empId] } else { @() }
 
   foreach ($period in $periods) {
     if (-not $hireDate -or $hireDate -gt $period) { continue }
@@ -140,6 +155,12 @@ foreach ($e in $employees) {
     # Air ticket cost is a separate employer cost line, not netted into pay.
     $netPay = [Math]::Round($grossSalary + $overtimeAmount - $totalDeductions, 2)
 
+    # Same formula as leave.js's own liability calc (leaveBalance x baseSalary
+    # / 30), just evaluated per period instead of once against "today".
+    $leave = Get-AsOf $leaveHist $period
+    $leaveBalance = if ($leave) { $leave.LeaveBalance } else { 0 }
+    $annualLeaveCost = [Math]::Round($leaveBalance * $sal.BaseSalary / 30, 2)
+
     $rows.Add([PSCustomObject]@{
       EmployeeID       = $empId
       Period           = $period.ToString("yyyy-MM-dd")
@@ -148,6 +169,7 @@ foreach ($e in $employees) {
       TotalDeductions  = $totalDeductions
       AirTicketCost    = $airTicketCost
       NetPay           = $netPay
+      AnnualLeaveCost  = $annualLeaveCost
     })
   }
 }
