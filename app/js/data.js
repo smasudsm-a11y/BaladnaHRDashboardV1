@@ -29,6 +29,7 @@ const TABLES = {
   pipRecords: "pip_records",
   exitSurveys: "exit_surveys",
   stageGateScores: "stage_gate_scores",
+  headcountForecast: "headcount_forecast",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -56,6 +57,7 @@ const SECTION_TABLES = {
   succession: ["critical_positions", "incumbents", "successors", "employee_master"],
   "probation-pip": ["probation_reviews", "pip_records", "employee_master"],
   enps: ["exit_surveys", "stage_gate_scores", "employee_master"],
+  "headcount-forecast": ["headcount_forecast", "employee_master"],
 };
 
 function toCamel(row) {
