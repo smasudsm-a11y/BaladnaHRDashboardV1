@@ -252,6 +252,22 @@ const UPLOAD_UNITS = [
       fields: { "Department": "department", "Budgeted Headcount": "budgeted_headcount" },
     }],
   },
+  {
+    id: "kpi_targets", fileLabel: "17 — KPI Targets",
+    sheets: [{
+      // Small, rarely-changing benchmark table (see 18_phase_g.sql) —
+      // upserted by metric_id, same reasoning as budgeted_positions/
+      // cost_centers. No source Database/*.xlsx workbook exists for this
+      // one either (seeded directly by the migration's INSERT); this card
+      // exists so targets can be revised without a new SQL migration.
+      sheetName: "KPI Targets Data", table: "kpi_targets", dateFields: [],
+      upsertKey: "metric_id",
+      fields: {
+        "Metric ID": "metric_id", "Metric Label": "metric_label",
+        "Target Value": "target_value", "Direction": "direction", "Unit": "unit",
+      },
+    }],
+  },
 ];
 
 function toIsoDate(v) {

@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, isActiveAsOf, fmtInt, fmtPct } from "../data.js";
+import { sortedUnique, sortGrades, isActiveAsOf, fmtInt, fmtPct, targetDelta } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "attrition", label: "Attrition & Retention", subtitle: "Voluntary and involuntary turnover, and termination profile" };
@@ -68,11 +68,11 @@ export function render({ db, contentEl, filtersEl }) {
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
-    kpiCard(kpiRow, { label: "Overall Attrition Rate", value: fmtPct(overallRate), note: `${fmtInt(rows.length)} terminations` });
+    kpiCard(kpiRow, { label: "Overall Attrition Rate", value: fmtPct(overallRate), note: `${fmtInt(rows.length)} terminations`, ...targetDelta(db, "turnover_rate", overallRate) });
     kpiCard(kpiRow, { label: "Voluntary Attrition Rate", value: fmtPct(voluntaryRate), note: `${voluntary} voluntary exits` });
     kpiCard(kpiRow, { label: "Involuntary Attrition Rate", value: fmtPct(involuntaryRate), note: `${involuntary} involuntary exits` });
     kpiCard(kpiRow, { label: "First-Year Attrition", value: fmtPct(firstYearPct), note: `${firstYear} left within 12 months of hire` });
-    kpiCard(kpiRow, { label: "Retention Rate", value: fmtPct(100 - overallRate), note: "100% − overall attrition rate" });
+    kpiCard(kpiRow, { label: "Retention Rate", value: fmtPct(100 - overallRate), note: "100% − overall attrition rate", ...targetDelta(db, "retention_rate", 100 - overallRate) });
     kpiCard(kpiRow, { label: "High Performer Retention %", value: fmtPct(highPerformerRetention), note: `${highPerformersTotal - highPerformersTerminated} of ${highPerformersTotal} high performers retained` });
 
     const grid = document.createElement("div");

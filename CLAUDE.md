@@ -4,7 +4,7 @@ A static HTML/CSS/JS dashboard (no build step, no framework) reading live from
 Supabase, deployed as a Render Static Site. Built incrementally — see "Build
 history" below for what exists and in what order it was added.
 
-## Current status (2026-08-16) — read this first if resuming
+## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
 separate, much larger Power BI suite Group IT built for Power International
@@ -19,11 +19,11 @@ whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
 (below) is the fix for that gap, phased and written down this time
 specifically so it doesn't have to be redone from scratch again. Phase D, E,
-and F are done as of this note (F was built out of order, ahead of E, per
-explicit user request — both are done now, in parallel sessions, so the
-order didn't end up mattering); Phases G–L remain. If you need the original
-screenshots again anyway (e.g. to re-verify a phase after it's built), ask
-the user — they aren't stored in this repo.
+F, and G are done as of this note (F was built out of order, ahead of E, per
+explicit user request — both landed the same day in parallel sessions, so
+the order didn't end up mattering); Phases H–L remain. If you need the
+original screenshots again anyway (e.g. to re-verify a phase after it's
+built), ask the user — they aren't stored in this repo.
 
 **Done and merged** (Phases A, B, C, and Payroll):
 - Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
@@ -136,11 +136,26 @@ later phases depend on earlier ones' tables existing.
     seeded directly by the migration). Recruitment's "Vacant Positions" KPI
     (budgeted − active headcount, by department) is now distinct from
     "Open Requisitions" (unclosed requisition count), as planned.
-- **Phase G — Targets/Benchmarks (new small table, cross-cutting)**: a
-  `kpi_targets` table (metric id → target value) surfaced as a delta/target
-  line on every rate KPI that has one in Power BI (turnover, retention,
-  absenteeism, etc.) — touches Attrition, Executive, and Leave & Absence's
-  KPI cards.
+- **Phase G — done** (built 2026-08-16). Targets/Benchmarks: a small,
+  cross-cutting `kpi_targets` table (`18_phase_g.sql` — metric id → label,
+  target value, `direction`, so good/bad is computed generically rather
+  than hardcoded per KPI) surfaced as a delta/target line on 4 rate KPIs
+  across the 3 pages Phase G named: `turnover_rate` (target 10.0%,
+  lower-is-better) on both Attrition's "Overall Attrition Rate" and
+  Executive's "Attrition Rate (TTM)" — the one metric genuinely shared
+  across pages; `retention_rate` (target 90.0%, higher-is-better) on
+  Attrition's "Retention Rate"; `absenteeism_rate_staff`/
+  `absenteeism_rate_labor` (targets 2.5%/4.0%, lower-is-better, split
+  because Leave & Absence's own KPIs are already split Staff vs. Labor) on
+  Leave & Absence. Target values are invented benchmarks (no real Power BI
+  target data exists to reconcile against here, unlike CTC Report) — the
+  shared `targetDelta(db, metricId, actualValue)` helper in `data.js`
+  computes the delta/color generically off `direction`, and returns `{}`
+  (no delta rendered) for a section-restricted user without `kpi_targets`
+  read access, so it degrades safely rather than erroring. New Data Refresh
+  card ("17 — KPI Targets", upserted by `metric_id`, no source workbook —
+  seeded directly by the migration, same pattern as `budgeted_positions`)
+  so targets can be revised without a new migration.
 - **Phase H — Succession Planning (new module)**: new tables for critical
   positions, incumbents, and successors/readiness; new page mirroring the
   Power BI report (Critical Roles, Position Holders, Vacancies, Successor
@@ -435,6 +450,13 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     no follow-up data load needed except `budgeted_positions`' seed insert,
     which the migration does itself. See CLAUDE.md's Phase F writeup above
     for the per-column reasoning.
+18. `18_phase_g.sql` — Power BI Parity Round 2, Phase G: new `kpi_targets`
+    table (sectioned read for `exec`/`attrition`/`leave`, admin insert/
+    update/delete — same pattern as `budgeted_positions`), seeded with 4
+    target rows (`turnover_rate`, `retention_rate`,
+    `absenteeism_rate_staff`, `absenteeism_rate_labor`) by the migration
+    itself. See CLAUDE.md's Phase G writeup above for the target values and
+    the `targetDelta()` helper.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -738,9 +760,10 @@ locally → verify on Render.
     Training, Performance, Attrition — no new tables, two RLS widenings),
     Phase E (Underpaid & Overpaid Analysis, a new page reusing Compensation's
     existing base_salary/salary_structure join, no new tables or access
-    grants), and, out of order ahead of Phase E but landed the same day
-    (built in a parallel session), Phase F (modest schema additions —
-    `approval_status`, a 3rd `workforce_category` value, `annual_leave_cost`,
-    training expiry/compliance tracking, NHP's Required Date, `grade_tier`,
-    and the new `budgeted_positions` table) — see "Power BI Parity — Round 2"
-    above
+    grants), out of order ahead of Phase E but landed the same day (built in
+    a parallel session) Phase F (modest schema additions — `approval_status`,
+    a 3rd `workforce_category` value, `annual_leave_cost`, training expiry/
+    compliance tracking, NHP's Required Date, `grade_tier`, and the new
+    `budgeted_positions` table), and Phase G (a small `kpi_targets` table
+    surfacing a target/delta line on Attrition, Executive, and Leave &
+    Absence's rate KPIs) — see "Power BI Parity — Round 2" above
