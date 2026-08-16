@@ -1,4 +1,4 @@
-import { sortedUnique, withEmployeeFields, fmtInt, fmtDec, fmtPct } from "../data.js";
+import { sortedUnique, sortGrades, withEmployeeFields, countUnique, fmtInt, fmtDec, fmtPct } from "../data.js";
 import { kpiCard, chartCard, barChart, filterSelect, noteBanner } from "../charts.js";
 
 export const meta = { id: "performance", label: "Performance", subtitle: "Rating distribution, department trends, and high/low performers" };
@@ -7,10 +7,15 @@ const RATING_ORDER = ["Below Expectations", "Meets Some Expectations", "Meets Ex
 const RATING_SCORE = Object.fromEntries(RATING_ORDER.map((r, i) => [r, i + 1]));
 
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.performance, ["department"]);
-  const cycles = ["All", ...sortedUnique(enriched, (p) => p.performanceCycle).sort()];
+  const enriched = withEmployeeFields(db, db.performance, ["department", "jobGrade"]);
+  const realCycles = sortedUnique(enriched, (p) => p.performanceCycle).sort();
+  const cycles = ["All", ...realCycles];
   const depts = ["All", ...sortedUnique(enriched, (p) => p.department)];
-  let cycle = "All", dept = "All";
+  // Defaults to the latest cycle, not "All" — "Appraisals"/"Completion %" compare
+  // appraisal count against CURRENT active headcount, so spanning multiple cycles
+  // (which include employees since terminated) would push completion over 100%,
+  // the same reasoning CTC Report's pages default their Year filter away from "All".
+  let cycle = realCycles[realCycles.length - 1] || "All", dept = "All";
 
   filterSelect(filtersEl, { label: "Performance Cycle", options: cycles, value: cycle, onChange: (v) => { cycle = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
@@ -29,6 +34,18 @@ export function render({ db, contentEl, filtersEl }) {
     // directly gives the calibration-shift view without needing a separate field.
     const adjusted = rows.filter((p) => p.managerRating !== p.overallRating).length;
 
+    // "Completion %" is unique employees appraised ÷ active employees eligible in
+    // scope — using unique employees rather than raw row count, since a row here
+    // is one performance-cycle record and an employee can have several across
+    // cycles/years (with "Performance Cycle" defaulted to "All"), which would
+    // otherwise push this over 100%. There's no completion-status field on this
+    // table (every row is already a finalized rating), so "completed" is measured
+    // against the eligible workforce rather than a draft/in-progress count that
+    // doesn't exist.
+    const eligibleActive = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept)).length;
+    const appraisedEmployees = countUnique(rows, (p) => p.employeeId);
+    const completionPct = eligibleActive ? (appraisedEmployees / eligibleActive) * 100 : 0;
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -38,6 +55,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Avg Competency Score", value: fmtDec(avgComp, 2) });
     kpiCard(kpiRow, { label: "Promotion Recommendation Rate", value: fmtPct(rows.length ? (promo / rows.length) * 100 : 0), note: `${fmtInt(promo)} recommended` });
     kpiCard(kpiRow, { label: "Ratings Adjusted in Calibration", value: fmtPct(rows.length ? (adjusted / rows.length) * 100 : 0), note: `${fmtInt(adjusted)} changed from manager's initial rating` });
+    kpiCard(kpiRow, { label: "Appraisals", value: fmtInt(rows.length), note: "selected cycle/department" });
+    kpiCard(kpiRow, { label: "Completion %", value: fmtPct(completionPct), note: `${fmtInt(appraisedEmployees)} of ${fmtInt(eligibleActive)} eligible employees appraised` });
 
     noteBanner(contentEl, `<b>Data gap flagged in PRD (§8.9):</b> the 9-Box Performance × Potential grid requires a "Potential" rating input that is not currently captured alongside Overall Rating. This page shows the Rating Distribution and departmental breakdown that <i>are</i> supported by current data; the 9-box view is omitted pending that data-capture gap being closed with HRIS.`);
 
@@ -78,6 +97,17 @@ export function render({ db, contentEl, filtersEl }) {
     const preDist = RATING_ORDER.map((r) => rows.filter((p) => p.managerRating === r).length);
     const c5 = chartCard(grid, { title: "Pre vs. Post-Calibration Ratings", sub: "Manager's initial rating vs. final calibrated rating" });
     barChart(c5, { labels: RATING_ORDER, datasets: [{ label: "Manager Rating (Pre)", data: preDist }, { label: "Calibrated Rating (Post)", data: dist }] });
+
+    const gradeOrder = sortGrades(sortedUnique(enriched, (p) => p.jobGrade));
+    const avgPostByGrade = gradeOrder.map((g) => {
+      const gr = rows.filter((p) => p.jobGrade === g);
+      return gr.length ? gr.reduce((s, p) => s + RATING_SCORE[p.overallRating], 0) / gr.length : 0;
+    });
+    const c6 = chartCard(grid, {
+      title: "Post-Calibration Average by Grade", sub: "1 = Below Expectations, 5 = Exceptional",
+      drilldown: { records: rows, matchField: "jobGrade", db },
+    });
+    barChart(c6, { labels: gradeOrder, datasets: [{ label: "Avg Rating", data: avgPostByGrade.map((v) => Math.round(v * 100) / 100) }], showLegend: false });
   }
 
   draw();

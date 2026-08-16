@@ -1,12 +1,12 @@
-import { sortedUnique, withEmployeeFields, countUnique, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, withEmployeeFields, countUnique, lastNMonths, monthLabel, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "training", label: "Learning & Training", subtitle: "Training investment, completion, and compliance" };
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.training, ["employeeName", "businessUnit", "location"]);
+  const enriched = withEmployeeFields(db, db.training, ["employeeName", "businessUnit", "location", "jobGrade"]);
   const years = ["All", ...sortedUnique(enriched, (t) => t.completionDate?.slice(0, 4)).sort()];
   const categories = ["All", ...sortedUnique(enriched, (t) => t.trainingCategory).sort()];
   let year = "All", month = "All", category = "All";
@@ -84,6 +84,23 @@ export function render({ db, contentEl, filtersEl }) {
       tableRows: rows,
     });
     barChart(c5, { labels: titleOrder, datasets: [{ label: "Completions", data: titleOrder.map((c) => byTitle.get(c)) }], horizontal: true, showLegend: false });
+
+    // Monthly trend, trailing 12 months — Category applies, Year/Month don't
+    // (same convention as every other trend chart in this app).
+    const months = lastNMonths(12);
+    const completedByMonth = months.map((ym) =>
+      enriched.filter((t) => t.completionStatus === "Completed" && t.completionDate?.startsWith(ym) && (category === "All" || t.trainingCategory === category)).length);
+    const c6 = chartCard(grid, { title: "Completed Courses Trend", sub: "Monthly, trailing 12 months" });
+    lineChart(c6, { labels: months.map(monthLabel), datasets: [{ label: "Completed", data: completedByMonth }], showLegend: false });
+
+    const gradeOrder = sortGrades(sortedUnique(enriched, (t) => t.jobGrade));
+    const assignedByGrade = gradeOrder.map((g) => rows.filter((t) => t.jobGrade === g).length);
+    const completedByGrade = gradeOrder.map((g) => rows.filter((t) => t.jobGrade === g && t.completionStatus === "Completed").length);
+    const c7 = chartCard(grid, { title: "Assigned / Completed by Grade", drilldown: { records: rows, matchField: "jobGrade", db } });
+    barChart(c7, { labels: gradeOrder, datasets: [
+      { label: "Assigned", data: assignedByGrade, stacked: true },
+      { label: "Completed", data: completedByGrade, stacked: true },
+    ], stacked: true });
   }
 
   draw();

@@ -34,7 +34,7 @@ const SECTION_TABLES = {
   newhires: ["employee_master", "base_salary", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
-  attrition: ["employee_master", "attrition"],
+  attrition: ["employee_master", "attrition", "performance"],
   leave: ["leave", "absenteeism", "employee_master", "base_salary"],
   performance: ["performance", "employee_master"],
   training: ["training", "employee_master"],
@@ -43,7 +43,7 @@ const SECTION_TABLES = {
   "ctc-expense-category": ["cost_centers", "ctc_actuals", "ctc_budget"],
   "ctc-variance-explorer": ["cost_centers", "ctc_actuals", "ctc_budget"],
   "ctc-yoy": ["cost_centers", "ctc_actuals", "ctc_budget"],
-  payroll: ["payroll", "employee_master"],
+  payroll: ["payroll", "employee_master", "base_salary"],
 };
 
 function toCamel(row) {

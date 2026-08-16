@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtDec, REFERENCE_TODAY } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "headcount", label: "Headcount & Workforce Profile", subtitle: "Trend, structure, and span of control" };
@@ -100,6 +100,24 @@ export function render({ db, contentEl, filtersEl }) {
     const wcCounts = wcOrder.map((c) => active.filter((e) => e.workforceCategory === c).length);
     const c6 = chartCard(grid, { title: "Headcount by Employee Type", sub: "Staff vs. Labor", drilldown: { records: active, matchField: "workforceCategory", db } });
     barChart(c6, { labels: wcOrder, datasets: [{ label: "Headcount", data: wcCounts }], showLegend: false });
+
+    const gradeOrder = sortGrades(sortedUnique(active, (e) => e.jobGrade));
+    const gradeCounts = gradeOrder.map((g) => active.filter((e) => e.jobGrade === g).length);
+    const c7 = chartCard(grid, { title: "Headcount by Grade", drilldown: { records: active, matchField: "jobGrade", db } });
+    barChart(c7, { labels: gradeOrder, datasets: [{ label: "Headcount", data: gradeCounts }], showLegend: false });
+
+    const posCounts = new Map();
+    for (const e of active) posCounts.set(e.positionTitle, (posCounts.get(e.positionTitle) || 0) + 1);
+    const posSorted = Array.from(posCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const topPos = posSorted.slice(0, 10);
+    const otherPos = posSorted.slice(10).reduce((s, [, n]) => s + n, 0);
+    const posLabels = [...topPos.map(([p]) => p), ...(otherPos ? ["Other"] : [])];
+    const posValues = [...topPos.map(([, n]) => n), ...(otherPos ? [otherPos] : [])];
+    const c8 = chartCard(grid, {
+      title: "Headcount by Position Title", sub: "Top 10 positions by headcount",
+      drilldown: { records: active, matchField: "positionTitle", db },
+    });
+    barChart(c8, { labels: posLabels, datasets: [{ label: "Headcount", data: posValues }], horizontal: true, showLegend: false });
   }
 
   draw();

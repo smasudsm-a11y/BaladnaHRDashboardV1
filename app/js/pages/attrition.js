@@ -49,6 +49,22 @@ export function render({ db, contentEl, filtersEl }) {
     const firstYear = rows.filter((a) => a.tenure < 1).length;
     const firstYearPct = rows.length ? (firstYear / rows.length) * 100 : 0;
 
+    // High Performer Retention %: of everyone ever rated Exceeds/Exceptional
+    // (current department, not the department at time of rating — a current-state
+    // snapshot like Workforce Tenure Distribution below), what share are still
+    // active rather than terminated. Needs db.performance, which this section
+    // wasn't previously granted read access to — see data.js's SECTION_TABLES
+    // and 16_phase_d_access.sql.
+    const highPerformerIds = new Set(
+      db.performance
+        .filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional")
+        .map((p) => p.employeeId)
+        .filter((id) => dept === "All" || db.employeeIndex.get(id)?.department === dept)
+    );
+    const highPerformersTotal = highPerformerIds.size;
+    const highPerformersTerminated = Array.from(highPerformerIds).filter((id) => db.employeeIndex.get(id)?.employmentStatus === "Terminated").length;
+    const highPerformerRetention = highPerformersTotal ? ((highPerformersTotal - highPerformersTerminated) / highPerformersTotal) * 100 : 0;
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -57,6 +73,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Involuntary Attrition Rate", value: fmtPct(involuntaryRate), note: `${involuntary} involuntary exits` });
     kpiCard(kpiRow, { label: "First-Year Attrition", value: fmtPct(firstYearPct), note: `${firstYear} left within 12 months of hire` });
     kpiCard(kpiRow, { label: "Retention Rate", value: fmtPct(100 - overallRate), note: "100% − overall attrition rate" });
+    kpiCard(kpiRow, { label: "High Performer Retention %", value: fmtPct(highPerformerRetention), note: `${highPerformersTotal - highPerformersTerminated} of ${highPerformersTotal} high performers retained` });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
