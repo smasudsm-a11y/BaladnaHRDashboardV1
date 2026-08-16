@@ -1,5 +1,5 @@
 import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, barChart, filterSelect } from "../charts.js";
+import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
 // own Manage Access checkbox — same mechanism as nhp.js sharing training's,
@@ -14,6 +14,15 @@ export const meta = {
 };
 
 const SEVERITY_BANDS = ["0–9%", "10–19%", "20–29%", "30–39%", "40%+"];
+// Matches the Power BI report's "Count/% By Quartiles" chart exactly — same
+// 6-bucket definition as compensation.js's own BUCKET_ORDER/positioningBucket
+// (duplicated here rather than imported, same as every other page-local
+// helper in this app; the two must be kept in sync if the bucketing ever changes).
+const QUARTILE_BUCKETS = ["Underpaid", "1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile", "Overpaid"];
+// The Power BI report's "Employees by Category" donut / "Salary Positioning
+// by Group/Cluster/Company" stacked bar both use this simpler 3-way split —
+// Within collapses all 4 quartile buckets into one category.
+const CATEGORY_ORDER = ["Within", "Underpaid", "Overpaid"];
 
 function severityBand(pct) {
   if (pct < 10) return "0–9%";
@@ -21,6 +30,15 @@ function severityBand(pct) {
   if (pct < 30) return "20–29%";
   if (pct < 40) return "30–39%";
   return "40%+";
+}
+
+function positioningBucket(rangePenetration) {
+  if (rangePenetration < 0) return "Underpaid";
+  if (rangePenetration < 25) return "1st Quartile";
+  if (rangePenetration < 50) return "2nd Quartile";
+  if (rangePenetration < 75) return "3rd Quartile";
+  if (rangePenetration <= 100) return "4th Quartile";
+  return "Overpaid";
 }
 
 function buildRecords(db) {
@@ -33,6 +51,7 @@ function buildRecords(db) {
     const { salaryRangeMin: min, salaryRangeMax: max } = struct;
     const underpaidAmount = sal.baseSalary < min ? min - sal.baseSalary : 0;
     const overpaidAmount = sal.baseSalary > max ? sal.baseSalary - max : 0;
+    const rangePenetration = ((sal.baseSalary - min) / (max - min)) * 100;
     out.push({
       employeeId,
       employeeName: e.employeeName,
@@ -46,6 +65,8 @@ function buildRecords(db) {
       overpaidAmount,
       underpaidSeverity: underpaidAmount > 0 ? severityBand((underpaidAmount / min) * 100) : null,
       overpaidSeverity: overpaidAmount > 0 ? severityBand((overpaidAmount / max) * 100) : null,
+      positioning: positioningBucket(rangePenetration),
+      category: underpaidAmount > 0 ? "Underpaid" : overpaidAmount > 0 ? "Overpaid" : "Within",
     });
   }
   return out;
@@ -76,6 +97,28 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Difference from Min Salary", value: fmtMoney(underpaidTotal), note: "total shortfall vs. grade minimum" });
     kpiCard(kpiRow, { label: "Overpaid Employees", value: fmtInt(overpaid.length), note: `${fmtPct(rows.length ? (overpaid.length / rows.length) * 100 : 0)} of evaluated` });
     kpiCard(kpiRow, { label: "Difference from Max Salary", value: fmtMoney(overpaidTotal), note: "total excess vs. grade maximum" });
+
+    // Overview section — matches the Power BI report's "Count/% By
+    // Quartiles" and "Employees by Category" visuals, which sit above the
+    // Underpaid/Overpaid KPI split there. Both respect both filters, same
+    // as the KPI row above.
+    const overviewGrid = document.createElement("div");
+    overviewGrid.className = "grid-2";
+    contentEl.appendChild(overviewGrid);
+
+    const quartileCounts = QUARTILE_BUCKETS.map((b) => rows.filter((r) => r.positioning === b).length);
+    const cQuartiles = chartCard(overviewGrid, {
+      title: "Count / % By Quartiles", sub: "Full population — where base salary sits within its grade's range",
+      drilldown: { records: rows, matchField: "positioning", db },
+    });
+    barChart(cQuartiles, { labels: QUARTILE_BUCKETS, datasets: [{ label: "Employees", data: quartileCounts }], showLegend: false });
+
+    const categoryCounts = CATEGORY_ORDER.map((c) => rows.filter((r) => r.category === c).length);
+    const cCategory = chartCard(overviewGrid, {
+      title: "Employees by Category", sub: "Within range vs. underpaid vs. overpaid",
+      drilldown: { records: rows, matchField: "category", db },
+    });
+    doughnutChart(cCategory, { labels: CATEGORY_ORDER, data: categoryCounts });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -108,6 +151,49 @@ export function render({ db, contentEl, filtersEl }) {
       drilldown: { records: overpaid, matchField: "overpaidSeverity", db },
     });
     barChart(c4, { labels: SEVERITY_BANDS, datasets: [{ label: "Excess (QAR)", data: overpaidAmounts.map(Math.round) }], showLegend: false });
+
+    // "By Business Unit" section — this app is Baladna-only (single
+    // company, no Group/Cluster concept), so Business Unit stands in for
+    // the Power BI report's "by Group/Cluster/Company" breakdowns, same
+    // substitution this app makes everywhere its schema has no literal
+    // Group-wide equivalent. Respects the Org Level filter but not the
+    // page's own Business Unit filter — same convention as compensation.js's
+    // "by Business Unit" charts (selecting a single BU would otherwise
+    // collapse this to one bar).
+    const buGrid = document.createElement("div");
+    buGrid.className = "grid-2";
+    contentEl.appendChild(buGrid);
+
+    const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
+    const buOrder = sortedUnique(records, (r) => r.businessUnit).sort();
+
+    const positioningByBu = CATEGORY_ORDER.map((c) => buOrder.map((b) => {
+      const inBu = levelFiltered.filter((r) => r.businessUnit === b);
+      return inBu.length ? (inBu.filter((r) => r.category === c).length / inBu.length) * 100 : 0;
+    }));
+    const cPositioningBu = chartCard(buGrid, {
+      title: "Salary Positioning by Business Unit", sub: "% within range vs. underpaid vs. overpaid",
+      drilldown: { records: levelFiltered, matchField: "businessUnit", db },
+    });
+    barChart(cPositioningBu, {
+      labels: buOrder,
+      datasets: CATEGORY_ORDER.map((c, i) => ({ label: c, data: positioningByBu[i].map((v) => Math.round(v * 10) / 10), stacked: true })),
+      stacked: true,
+    });
+
+    const underpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isUnderpaid).length);
+    const cUnderpaidBu = chartCard(buGrid, {
+      title: "Underpaid Employees by Business Unit",
+      drilldown: { records: levelFiltered.filter((r) => r.isUnderpaid), matchField: "businessUnit", db },
+    });
+    barChart(cUnderpaidBu, { labels: buOrder, datasets: [{ label: "Underpaid", data: underpaidByBu }], showLegend: false });
+
+    const overpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isOverpaid).length);
+    const cOverpaidBu = chartCard(buGrid, {
+      title: "Overpaid Employees by Business Unit",
+      drilldown: { records: levelFiltered.filter((r) => r.isOverpaid), matchField: "businessUnit", db },
+    });
+    barChart(cOverpaidBu, { labels: buOrder, datasets: [{ label: "Overpaid", data: overpaidByBu }], showLegend: false });
   }
 
   draw();
