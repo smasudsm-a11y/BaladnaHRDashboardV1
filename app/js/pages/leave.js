@@ -51,6 +51,7 @@ export function render({ db, contentEl, filtersEl }) {
     }
 
     const totalAbsenceHours = absRows.reduce((s, a) => s + a.absenceHours, 0);
+    const unapprovedAbsences = absRows.filter((a) => a.approvalStatus === "Unapproved").length;
     const yearsCount = year === "All" ? Math.max(1, realYears.length) : 1;
     const workingDaysInPeriod = (month === "All" ? 260 : 260 / 12) * yearsCount;
     const lostWorkdays = totalAbsenceHours / 8;
@@ -89,6 +90,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Absenteeism Rate — Staff", value: fmtPct(absenceRateStaff), note: "absence hours ÷ est. scheduled hours" });
     kpiCard(kpiRow, { label: "Absenteeism Rate — Labor", value: fmtPct(absenceRateLabor), note: "absence hours ÷ est. scheduled hours" });
     kpiCard(kpiRow, { label: "Lost Workdays", value: fmtInt(lostWorkdays), note: `${fmtInt(totalAbsenceHours)} absence hours` });
+    kpiCard(kpiRow, { label: "Unapproved Absences", value: fmtInt(unapprovedAbsences), note: `of ${fmtInt(absRows.length)} total absence records`, deltaKind: unapprovedAbsences > 0 ? "warn" : "good" });
     kpiCard(kpiRow, { label: "Total Working Days", value: fmtInt(totalWorkingDays), note: "active headcount × est. scheduled days" });
     kpiCard(kpiRow, { label: "Days till YTD", value: fmtInt(daysTillYTD), note: `${effectiveYear}, through ${month === "All" ? "today" : month}` });
 

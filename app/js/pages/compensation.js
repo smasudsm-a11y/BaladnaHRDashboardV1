@@ -6,6 +6,7 @@ export const meta = { id: "compensation", label: "Compensation & Pay Equity", su
 // Fixed display order (not alphabetical) — always referenced directly as this
 // array, never re-sorted, so the bucket names themselves stay plain/unprefixed.
 const BUCKET_ORDER = ["Underpaid", "1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile", "Overpaid"];
+const TIER_ORDER = ["Junior", "Mid", "Senior", "Executive"];
 
 function positioningBucket(rangePenetration) {
   if (rangePenetration === null) return null;
@@ -28,12 +29,14 @@ function buildRecords(db) {
     out.push({
       employeeId,
       grade: sal.grade,
+      gradeTier: struct ? struct.gradeTier : null,
       baseSalary: sal.baseSalary,
       totalCash: tr ? tr.totalCashCompensation : null,
       totalRem: tr ? tr.totalRemuneration : null,
       businessUnit: e.businessUnit,
       jobLevel: e.jobLevel,
       gender: e.gender,
+      workforceCategory: e.workforceCategory,
       compaRatio: struct ? sal.baseSalary / struct.salaryMidpoint : null,
       rangePenetration,
       positioning: positioningBucket(rangePenetration),
@@ -119,6 +122,20 @@ export function render({ db, contentEl, filtersEl }) {
     const bucketCounts = BUCKET_ORDER.map((b) => rows.filter((r) => r.positioning === b).length);
     const c5 = chartCard(grid, { title: "Salary Positioning by Quartile", sub: "Where base salary sits within its grade's range", drilldown: { records: rows, matchField: "positioning", db } });
     barChart(c5, { labels: BUCKET_ORDER, datasets: [{ label: "Employees", data: bucketCounts }], showLegend: false });
+
+    // Grade tier (Junior/Mid/Senior/Executive, from salary_structure.grade_tier
+    // — see 17_phase_f.sql) split Staff vs. Labor (workforce_category).
+    const tierRows = rows.filter((r) => r.gradeTier);
+    const staffByTier = TIER_ORDER.map((t) => avgBy(tierRows.filter((r) => r.gradeTier === t && r.workforceCategory === "Staff" && r.rangePenetration !== null), (r) => r.rangePenetration));
+    const laborByTier = TIER_ORDER.map((t) => avgBy(tierRows.filter((r) => r.gradeTier === t && r.workforceCategory === "Labor" && r.rangePenetration !== null), (r) => r.rangePenetration));
+    const c6 = chartCard(grid, {
+      title: "Salary Positioning by Grade Tier", sub: "Avg range penetration %, Staff vs. Labor",
+      drilldown: { records: tierRows, matchField: "gradeTier", db },
+    });
+    barChart(c6, { labels: TIER_ORDER, datasets: [
+      { label: "Staff", data: staffByTier.map((v) => Math.round(v * 10) / 10) },
+      { label: "Labor", data: laborByTier.map((v) => Math.round(v * 10) / 10) },
+    ] });
   }
 
   draw();

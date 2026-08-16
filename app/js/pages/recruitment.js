@@ -41,6 +41,20 @@ export function render({ db, contentEl, filtersEl }) {
     const activeHC = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept)).length;
     const vacancyRate = (activeHC + openReqs) ? (openReqs / (activeHC + openReqs)) * 100 : 0;
 
+    // Vacant Positions: budgeted headcount minus actual active headcount, per
+    // department (see budgeted_positions in 17_phase_f.sql) — a distinct
+    // concept from "Open Requisitions" above (which counts unclosed hiring
+    // requests, not the underlying headcount-budget gap). Not date-filtered
+    // (a headcount budget is a standing snapshot, not tied to a requisition's
+    // open month), only Department applies, same as Vacancy Rate's activeHC.
+    const budgetDepts = dept === "All" ? Array.from(db.budgetedPositionsIndex.keys()) : [dept];
+    const vacantPositions = budgetDepts.reduce((sum, d) => {
+      const budget = db.budgetedPositionsIndex.get(d);
+      if (!budget) return sum;
+      const activeInDept = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && e.department === d).length;
+      return sum + Math.max(0, budget.budgetedHeadcount - activeInDept);
+    }, 0);
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -50,6 +64,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Recruitment Cost", value: fmtMoney(totalCost), note: `${fmtMoney(rows.length ? totalCost / rows.length : 0)} avg / requisition` });
     kpiCard(kpiRow, { label: "Requisitions", value: fmtInt(rows.length), note: `${openReqs} open · ${filledReqs} filled` });
     kpiCard(kpiRow, { label: "Vacancy Rate", value: fmtPct(vacancyRate), note: "open requisitions ÷ (active headcount + open requisitions)" });
+    kpiCard(kpiRow, { label: "Vacant Positions", value: fmtInt(vacantPositions), note: "budgeted headcount − active headcount, by department" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";

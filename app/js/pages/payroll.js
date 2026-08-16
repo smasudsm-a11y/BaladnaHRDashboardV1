@@ -77,6 +77,7 @@ export function render({ db, contentEl, filtersEl }) {
     const totalAirTicket = sumBy(periodRows, (r) => r.airTicketCost);
     const totalNetPay = sumBy(periodRows, (r) => r.netPay);
     const avgNetPay = avgBy(periodRows, (r) => r.netPay);
+    const totalLeaveLiability = sumBy(periodRows, (r) => r.annualLeaveCost);
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -89,6 +90,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Avg Net Pay / Employee", value: fmtMoney(avgNetPay), note: `${fmtInt(periodRows.length)} employee-months` });
     kpiCard(kpiRow, { label: "Net Pay — Staff", value: fmtMoney(sumBy(periodRows.filter((r) => r.workforceCategory === "Staff"), (r) => r.netPay)), note: "selected period" });
     kpiCard(kpiRow, { label: "Net Pay — Labor", value: fmtMoney(sumBy(periodRows.filter((r) => r.workforceCategory === "Labor"), (r) => r.netPay)), note: "selected period" });
+    kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(totalLeaveLiability), note: "selected period, trended below" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -101,12 +103,14 @@ export function render({ db, contentEl, filtersEl }) {
     const overtimeByPeriod = periods.map((p) => sumBy(trendRows.filter((r) => r.period === p), (r) => r.overtimeAmount));
     const deductionsByPeriod = periods.map((p) => sumBy(trendRows.filter((r) => r.period === p), (r) => r.totalDeductions));
     const airTicketByPeriod = periods.map((p) => sumBy(trendRows.filter((r) => r.period === p), (r) => r.airTicketCost));
+    const leaveLiabilityByPeriod = periods.map((p) => sumBy(trendRows.filter((r) => r.period === p), (r) => r.annualLeaveCost));
     const c1 = chartCard(grid, { title: "Payroll Cost Trend", sub: `Monthly, ${year === "All" ? "trailing history" : year}` });
     lineChart(c1, { labels: periods.map(periodLabelOf), datasets: [
       { label: "Gross Salary", data: grossByPeriod.map(Math.round) },
       { label: "Overtime", data: overtimeByPeriod.map(Math.round) },
       { label: "Deductions", data: deductionsByPeriod.map(Math.round) },
       { label: "Air Ticket Cost", data: airTicketByPeriod.map(Math.round) },
+      { label: "Annual Leave Liability", data: leaveLiabilityByPeriod.map(Math.round) },
     ] });
 
     // Chart 2: Net Pay by Department, selected period
@@ -167,6 +171,7 @@ export function render({ db, contentEl, filtersEl }) {
         overtimeAmount: sumBy(rows, (r) => r.overtimeAmount),
         totalDeductions: sumBy(rows, (r) => r.totalDeductions),
         airTicketCost: sumBy(rows, (r) => r.airTicketCost),
+        annualLeaveCost: sumBy(rows, (r) => r.annualLeaveCost),
         netPay: sumBy(rows, (r) => r.netPay),
       };
     });
@@ -179,6 +184,7 @@ export function render({ db, contentEl, filtersEl }) {
         { key: "overtimeAmount", label: "Overtime", num: true, fmt: fmtMoney },
         { key: "totalDeductions", label: "Deductions", num: true, fmt: fmtMoney },
         { key: "airTicketCost", label: "Air Ticket Cost", num: true, fmt: fmtMoney },
+        { key: "annualLeaveCost", label: "Leave Liability", num: true, fmt: fmtMoney },
         { key: "netPay", label: "Net Pay", num: true, fmt: fmtMoney },
       ],
       rows: deptBreakdown,

@@ -4,7 +4,7 @@ A static HTML/CSS/JS dashboard (no build step, no framework) reading live from
 Supabase, deployed as a Render Static Site. Built incrementally — see "Build
 history" below for what exists and in what order it was added.
 
-## Current status (2026-08-13) — read this first if resuming
+## Current status (2026-08-16) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
 separate, much larger Power BI suite Group IT built for Power International
@@ -17,11 +17,13 @@ comparison, not a real page-by-page audit. When the user re-shared the same
 page's source code + the live schema turned up a long list of real gaps —
 whole missing modules (Succession Planning, Employee Satisfaction/eNPS,
 Headcount Forecast, Probation & PIP), not just missing charts. **Round 2**
-(below, planned but not started as of this note) is the fix for that gap,
-phased and written down this time specifically so it doesn't have to be
-redone from scratch again. If you need the original screenshots again
-anyway (e.g. to re-verify a phase after it's built), ask the user — they
-aren't stored in this repo.
+(below) is the fix for that gap, phased and written down this time
+specifically so it doesn't have to be redone from scratch again. Phase D, E,
+and F are done as of this note (F was built out of order, ahead of E, per
+explicit user request — both are done now, in parallel sessions, so the
+order didn't end up mattering); Phases G–L remain. If you need the original
+screenshots again anyway (e.g. to re-verify a phase after it's built), ask
+the user — they aren't stored in this repo.
 
 **Done and merged** (Phases A, B, C, and Payroll):
 - Phase A: Legal Entity/Localization surfaced on Headcount & Diversity,
@@ -87,19 +89,53 @@ later phases depend on earlier ones' tables existing.
   no `data.js`/RLS changes at all, since any user granted `compensation`
   already has the `compensation` page id in `allowedIds`, whose own
   `SECTION_TABLES` entry already fetches everything this page reads.
-- **Phase F — modest schema additions** (new columns, not new tables):
-  `absenteeism.approval_status` (backfilled synthetically) → "Unapproved
-  Absences" KPI; a third `workforce_category` value "Consultant" (small
-  backfill rule addition) to match Power BI's 3-way split; fold Leave's
-  "Est. Annual Leave Liability" into a new `payroll.annual_leave_cost`
-  column, trended on the Payroll Cost Trend chart; `training.expiry_date` +
-  a compliance-status column → "Compliance Courses by Expiry Status"
-  chart; Entity Type/Required Date/Supervisor columns added for NHP's
-  detail table; a Junior/Mid/Senior/Executive grade-tier mapping (like the
-  `workforce_category` backfill) → "Salary Positioning by Grade Tier" on
-  Compensation, split Staff vs. Labor; a small `budgeted_positions`
-  concept on Recruitment so "Vacant Positions" means something distinct
-  from "Open Requisitions."
+- **Phase F — done** (built 2026-08-16, in parallel with Phase E above, out
+  of build order but landed the same day — the user asked for F
+  specifically ahead of E). Modest schema additions, all in
+  `17_phase_f.sql`, mostly new columns as planned — except
+  `budgeted_positions`, which needed a small new lookup table after all (see
+  below):
+  - `absenteeism.approval_status` (deterministic backfill: Paid → Approved;
+    Unpaid Sick/Other → Approved (approved-unpaid-leave); Unpaid Late/
+    Unplanned → Unapproved, the closest proxy this schema has for a genuine
+    no-call/no-show — ~30% of rows) → Leave & Absence's new "Unapproved
+    Absences" KPI.
+  - `workforce_category` gets a third value, "Consultant" — `employee_type =
+    'Temporary'` (61 of 1,510 employees) now overrides the Staff/Labor rule
+    from `14_workforce_category.sql`, since Temporary is the only existing
+    field with a "non-permanent engagement" concept close to Consultant.
+  - `payroll.annual_leave_cost`: same formula as Leave's own "Est. Annual
+    Leave Liability" (latest Annual leave balance × base salary ÷ 30), just
+    evaluated per employee-month instead of once against "today" — Leave's
+    KPI is unchanged (still a live snapshot), Payroll additionally trends it
+    monthly on the Payroll Cost Trend chart and a new KPI card. Also wired
+    into `generate_payroll_data.ps1`/`build_payroll_workbook.ps1` so a
+    from-scratch regeneration stays in sync with the live schema.
+  - `training.expiry_date` + `training.compliance_status`, backfilled only
+    for completed Compliance-category rows (expiry = completion + 1 year;
+    status computed once against this app's fixed "today", `2026-08-02`,
+    same reasoning as everything else in this app that avoids a real
+    wall-clock date) → Training's new "Compliance Courses by Expiry Status"
+    chart.
+  - `training.required_date` (hire date + 90 days, NHP's onboarding
+    deadline) → NHP's detail table "Required Date" column. Its other two
+    planned columns, Entity Type and Supervisor, needed no schema change —
+    they're `employee_master.legalEntity`/`lineManagerName`, just not
+    previously in `nhp.js`'s `withEmployeeFields` list.
+  - `salary_structure.grade_tier` (G1–G4 Junior, G5–G8 Mid, G9–G12 Senior,
+    G13–G14 Executive — G13/14's 22 employees happens to match
+    `job_level`'s own Executive count, a useful sanity check though the two
+    tiers are independently defined) → Compensation's new "Salary
+    Positioning by Grade Tier" chart, avg range penetration % grouped by
+    tier, Staff vs. Labor.
+  - `budgeted_positions` (department → budgeted headcount, active headcount
+    + 8% buffer, min +1): the one item that didn't fit as a column — a
+    department-level headcount budget has no natural home on any existing
+    row. New table, `recruitment` section RLS, and a Data Refresh card
+    ("16 — Budgeted Positions", upserted by department, no source workbook —
+    seeded directly by the migration). Recruitment's "Vacant Positions" KPI
+    (budgeted − active headcount, by department) is now distinct from
+    "Open Requisitions" (unclosed requisition count), as planned.
 - **Phase G — Targets/Benchmarks (new small table, cross-cutting)**: a
   `kpi_targets` table (metric id → target value) surfaced as a delta/target
   line on every rate KPI that has one in Power BI (turnover, retention,
@@ -390,6 +426,15 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     without this, a section-restricted, non-full_access attrition/payroll
     user sees them silently come back empty, same failure mode as the gap
     `13_newhires_salary_access.sql` fixed.
+17. `17_phase_f.sql` — Power BI Parity Round 2, Phase F: `absenteeism.approval_status`,
+    a third `workforce_category` value ("Consultant"), `payroll.annual_leave_cost`,
+    `training.expiry_date`/`compliance_status`/`required_date`,
+    `salary_structure.grade_tier`, and the new `budgeted_positions` table
+    (sectioned read for `recruitment`, admin insert/update/delete — same
+    pattern as `payroll`/`ctc_actuals`). All backfilled in the same migration;
+    no follow-up data load needed except `budgeted_positions`' seed insert,
+    which the migration does itself. See CLAUDE.md's Phase F writeup above
+    for the per-column reasoning.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -690,6 +735,12 @@ locally → verify on Render.
 16. Started Power BI Parity Round 2 (a real page-by-page code+schema audit,
     after Round 1's "complete" call turned out to be premature): Phase D
     (quick-win charts/KPIs across Headcount, Payroll, Leave & Absence,
-    Training, Performance, Attrition — no new tables, two RLS widenings) and
+    Training, Performance, Attrition — no new tables, two RLS widenings),
     Phase E (Underpaid & Overpaid Analysis, a new page reusing Compensation's
-    existing base_salary/salary_structure join, no new tables or access grants)
+    existing base_salary/salary_structure join, no new tables or access
+    grants), and, out of order ahead of Phase E but landed the same day
+    (built in a parallel session), Phase F (modest schema additions —
+    `approval_status`, a 3rd `workforce_category` value, `annual_leave_cost`,
+    training expiry/compliance tracking, NHP's Required Date, `grade_tier`,
+    and the new `budgeted_positions` table) — see "Power BI Parity — Round 2"
+    above
