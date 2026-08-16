@@ -671,7 +671,7 @@ scripts/
                          Database/18_Headcount_Forecast.xlsx, 1 sheet)
 supabase/
   *.sql                 migrations, run manually via Supabase SQL Editor, in
-                         NUMBER ORDER (01 through 23 so far — see below)
+                         NUMBER ORDER (01 through 24 so far — see below)
   csv/                  one-time CSV export used for the original data load
                          (via Table Editor import) — historical, not live
   functions/
@@ -727,12 +727,55 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
    isn't necessarily an admin). Gates the "Admin" nav group (Manage Access +
    Data Refresh). Admin-only INSERT/DELETE policies added in
    `09_data_refresh.sql` for the data-refresh feature.
+4. **Divisional access** (added `24_divisional_access.sql`, for HRBPs scoped
+   to specific divisions) — `user_access.divisions` (`text[]`, empty/null =
+   unrestricted, same meaning as `full_access` bypassing the section check;
+   an HRBP covering more than one division just gets more than one array
+   entry). Layered ON TOP of section access, not a replacement — a user
+   still needs the relevant section AND, if divisionally restricted, the
+   row's division in their set. Enforced via a `public.division_allowed(uid,
+   row_division)` SECURITY DEFINER helper (same recursion-avoidance
+   reasoning as `is_admin()`, see the gotcha below) ANDed onto ~22 tables'
+   `"sectioned read"` policies. How each table resolves its division,
+   verified against the live schema rather than assumed:
+   - **Has its own `division` column**: `employee_master`, `org_hierarchy`,
+     `critical_positions`, `headcount_forecast`, `excess_hours_violations`.
+   - **Joined to `employee_master` via `employee_id`** (no division column
+     of their own): `diversity`, `attrition`, `base_salary`, `total_rewards`,
+     `leave`, `absenteeism`, `performance`, `training`, `payroll`,
+     `probation_reviews`, `pip_records`, `exit_surveys`, `stage_gate_scores`.
+   - **Joined to `critical_positions.division` via `position_id`**:
+     `incumbents`, `successors` — deliberately the POSITION's division, not
+     the incumbent's/successor's, so a vacant critical role still resolves
+     to a division regardless of who (if anyone) holds or is lined up for it.
+   - **Joined by `department` NAME** (neither has an `employee_id` at all —
+     `recruitment` is pre-hire/candidate-level, `budgeted_positions` is
+     department-level): `recruitment`, `budgeted_positions`. Verified 1:1
+     against employee_master first — Baladna's 13 departments each map to
+     exactly one division, no department spans two — so this is safe.
+   - **Deliberately NOT divisionally scoped** (no per-row division concept,
+     or CTC visibility already handled by a separate, stricter rule): `cost_centers`/
+     `ctc_actuals`/`ctc_budget`/`ctc_revenue` (CTC stays Total Rewards/CEO-only
+     by policy, independent of this feature — HRBPs never get the `ctc`
+     section at all), `salary_structure` (grade-level pay bands, same for
+     everyone), `kpi_targets`/`initiatives` (company-wide reference/tracker
+     tables), and `article75_violations` (weekly company-wide case-count
+     only — the source report never tracked individual cases, so there's no
+     per-row division to filter on; confirmed acceptable to leave this one
+     table company-wide for every Attendance-section user regardless of
+     division, per user decision 2026-08-16).
+   Manage Access (`admin.js`) gained a `DIVISIONS` constant (hardcoded, same
+   reasoning as `RATING_ORDER`/`SEVERITY_BANDS` elsewhere — a stable
+   assignable list, not derived from live data) and one checkbox column per
+   division, disabled (like the section checkboxes) when `full_access` is on.
 
 **RLS recursion gotcha**: a policy on `user_access` that subqueries
 `user_access` itself to check `is_admin` causes "infinite recursion detected
 in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(uid)`
 (see `08_fix_admin_recursion.sql`). Any new admin-gated policy should call
-`public.is_admin(auth.uid())`, never inline-subquery `user_access`.
+`public.is_admin(auth.uid())`, never inline-subquery `user_access`. The same
+reasoning is why divisional access uses `public.division_allowed(uid,
+row_division)` rather than an inline `user_access` subquery.
 
 ## Supabase migrations (run in this order, via SQL Editor)
 
@@ -847,6 +890,13 @@ in policy" — fixed via a `SECURITY DEFINER` helper function `public.is_admin(u
     with 8 invented sample rows by the migration itself. See CLAUDE.md's
     Phase L writeup above for why "target lines on existing KPIs" needed no
     further work.
+24. `24_divisional_access.sql` — Divisional access for HRBPs (outside the
+    Power BI Parity project): adds `user_access.divisions` and the
+    `public.division_allowed()` helper, then ANDs a division check onto
+    ~22 tables' sectioned-read policies. See "Access control model" above
+    for the full per-table breakdown of how each resolves its division
+    (direct column, joined via `employee_master`/`critical_positions`, or
+    joined by department name) and which tables are deliberately excluded.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
@@ -1359,3 +1409,15 @@ locally → verify on Render.
     the Initiatives tracker, the only genuinely new table this phase
     needed) — see "Power BI Parity — Round 2" above. Round 2 is now
     complete.
+17. Added divisional access for HRBPs (outside the Power BI Parity project,
+    like Zee was) — a `divisions` array on `user_access`, layered on top of
+    (not replacing) section-based access, enforced via a new
+    `public.division_allowed()` SECURITY DEFINER helper ANDed onto ~22
+    tables' RLS policies. Most tables needed a join back to
+    `employee_master`/`critical_positions` for their division since they
+    don't carry one directly; `recruitment`/`budgeted_positions` needed a
+    department-name join instead (verified 1:1 against employee_master
+    first). CTC stays out of scope entirely (Total Rewards/CEO-only by a
+    separate, pre-existing rule), and `article75_violations` stays
+    company-wide since it has no per-row division at all to filter on. See
+    "Access control model" above for the full table-by-table breakdown.
