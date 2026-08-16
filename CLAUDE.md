@@ -91,6 +91,26 @@ later phases depend on earlier ones' tables existing.
   needs `db.latestBaseSalary` for the grade join (not previously granted to
   the `payroll` section) — both added in `16_phase_d_access.sql`, plus the
   matching `SECTION_TABLES` entries in `data.js`.
+  **Revisited 2026-08-16 (later)** after the user compared Performance
+  against the Power BI "Year End Performance Appraisal Report" screenshot.
+  Added, all from existing `performance`/`employee_master` data (no schema
+  change): **Completed Appraisals** and **Deleted Appraisals** KPIs —
+  "deleted" is derived from a real signal already on the page (an
+  appraisal whose employee has since left the company — `terminationDate`,
+  newly added to `performance.js`'s own `withEmployeeFields` join list),
+  same early-termination-as-proxy reasoning as Probation & PIP's outcome
+  derivation, not a new column; **Pre Overall Average** and **Post Overall
+  Average** KPIs (avg `RATING_SCORE` across `managerRating`/`overallRating`
+  respectively, the same 1–5 mapping the by-department/by-grade charts
+  already use) with a delta note and a hardcoded `POST_CALIBRATION_TARGET`
+  (3.0, an invented plausible benchmark, not reconciled against anything
+  real — same treatment as Phase G's `kpi_targets` values); and a new
+  **Ratings Distribution — Pre / Target / Post** chart, a 3-row 100%
+  stacked horizontal bar matching the Power BI report's exact visual,
+  where "Target Distribution" is a hardcoded forced-distribution policy
+  curve (5/15/60/15/5% across the 5 bands — a business policy shape, not
+  per-employee data, so no schema/table needed at all, same reasoning as
+  `SEVERITY_BANDS`/`RATING_ORDER` being page-local constants).
 - **Phase E — done.** Underpaid & Overpaid Analysis (`underpaid-overpaid.js`,
   new page, existing data): reuses `base_salary`/`salary_structure`, the
   same data Compensation's quartile chart already reads. Headline $
