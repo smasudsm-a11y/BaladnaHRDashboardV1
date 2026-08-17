@@ -2,14 +2,25 @@ import { getClient } from "../supabase-client.js";
 
 export const meta = { id: "admin", label: "Manage Access", subtitle: "Grant or revoke dashboard access for your team" };
 
-// Fixed, not derived from live data — Manage Access needs a stable
-// assignable list independent of this moment's employee_master rows (same
-// reasoning RATING_ORDER/SEVERITY_BANDS are hardcoded page constants
-// elsewhere). Matches employee_master.division's 4 real values exactly
-// (see 24_divisional_access.sql). Empty/no divisions checked = unrestricted
-// within whatever sections a user has, same meaning as full_access
-// bypassing the section check entirely.
-const DIVISIONS = ["Commercial", "Corporate", "Operations", "Supply Chain"];
+// Pulled live from employee_master rather than hardcoded — so uploading a
+// real data file with different division names (this app only ever had
+// Commercial/Corporate/Operations/Supply Chain in its synthetic data) makes
+// the right checkboxes appear here with no code change. Paginated the same
+// way data.js's fetchAllRows is, since PostgREST caps a single SELECT at
+// 1000 rows and employee_master has more than that.
+async function fetchDivisions(client) {
+  const seen = new Set();
+  let from = 0;
+  const pageSize = 1000;
+  for (;;) {
+    const { data, error } = await client.from("employee_master").select("division").range(from, from + pageSize - 1);
+    if (error) throw error;
+    data.forEach((r) => { if (r.division) seen.add(r.division); });
+    if (data.length < pageSize) break;
+    from += pageSize;
+  }
+  return Array.from(seen).sort();
+}
 
 export function render({ contentEl, sectionList }) {
   contentEl.innerHTML = "";
@@ -35,10 +46,22 @@ export function render({ contentEl, sectionList }) {
       wrap.innerHTML = `<div class="note-banner"><b>Failed to load users:</b> ${error.message}</div>`;
       return;
     }
-    renderTable(data, myUserId);
+
+    // Degrades to no division columns rather than failing the whole page —
+    // a section-restricted admin (no full_access) might not have RLS
+    // visibility into employee_master at all, and that shouldn't block
+    // Manage Access's core section-assignment job.
+    let divisions = [];
+    try {
+      divisions = await fetchDivisions(client);
+    } catch (e) {
+      console.warn("Could not load divisions for Manage Access:", e);
+    }
+
+    renderTable(data, myUserId, divisions);
   }
 
-  function renderTable(rows, myUserId) {
+  function renderTable(rows, myUserId, divisions) {
     const table = document.createElement("table");
     table.className = "data-table admin-table";
     table.innerHTML = `<thead><tr>
@@ -46,14 +69,14 @@ export function render({ contentEl, sectionList }) {
       <th>Admin</th>
       <th>Full Access</th>
       ${sectionList.map((s) => `<th>${s.label}</th>`).join("")}
-      ${DIVISIONS.map((d) => `<th>Div: ${d}</th>`).join("")}
+      ${divisions.map((d) => `<th>Div: ${d}</th>`).join("")}
     </tr></thead>`;
 
     const tbody = document.createElement("tbody");
     rows.forEach((row) => {
       const isMe = row.user_id === myUserId;
       const sections = new Set(row.sections || []);
-      const divisions = new Set(row.divisions || []);
+      const rowDivisions = new Set(row.divisions || []);
 
       const tr = document.createElement("tr");
       tr.innerHTML = `
@@ -61,7 +84,7 @@ export function render({ contentEl, sectionList }) {
         <td><input type="checkbox" data-field="is_admin" ${row.is_admin ? "checked" : ""} ${isMe ? "disabled" : ""} title="${isMe ? "You can't remove your own admin access here" : ""}"></td>
         <td><input type="checkbox" data-field="full_access" ${row.full_access ? "checked" : ""}></td>
         ${sectionList.map((s) => `<td><input type="checkbox" data-section="${s.id}" ${sections.has(s.id) ? "checked" : ""} ${row.full_access ? "disabled" : ""}></td>`).join("")}
-        ${DIVISIONS.map((d) => `<td><input type="checkbox" data-division="${d}" ${divisions.has(d) ? "checked" : ""} ${row.full_access ? "disabled" : ""} title="Leave all divisions unchecked for unrestricted (within their granted sections)"></td>`).join("")}
+        ${divisions.map((d) => `<td><input type="checkbox" data-division="${d}" ${rowDivisions.has(d) ? "checked" : ""} ${row.full_access ? "disabled" : ""} title="Leave all divisions unchecked for unrestricted (within their granted sections)"></td>`).join("")}
       `;
       tbody.appendChild(tr);
 
