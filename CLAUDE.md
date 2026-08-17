@@ -764,10 +764,20 @@ Three independent layers, all enforced at the **database** (RLS), not just UI:
      per-row division to filter on; confirmed acceptable to leave this one
      table company-wide for every Attendance-section user regardless of
      division, per user decision 2026-08-16).
-   Manage Access (`admin.js`) gained a `DIVISIONS` constant (hardcoded, same
-   reasoning as `RATING_ORDER`/`SEVERITY_BANDS` elsewhere — a stable
-   assignable list, not derived from live data) and one checkbox column per
-   division, disabled (like the section checkboxes) when `full_access` is on.
+   Manage Access (`admin.js`) gained one checkbox column per division,
+   disabled (like the section checkboxes) when `full_access` is on. The
+   division list itself is fetched live from `employee_master` (paginated
+   the same way `data.js`'s `fetchAllRows` is, since PostgREST caps a
+   single SELECT at 1000 rows) rather than hardcoded — **revisited
+   2026-08-17** after the user's first instinct (a hardcoded list, same
+   reasoning as `RATING_ORDER`/`SEVERITY_BANDS` elsewhere) turned out to be
+   the wrong call here specifically: unlike a rating scale or severity
+   band, which this app defines rather than reads, "what divisions exist"
+   is a fact about whatever's currently uploaded to `employee_master` —
+   hardcoding it would silently go stale the moment real data with
+   different division names replaces the synthetic set. Degrades to no
+   division columns (not a page failure) if the fetch errors, e.g. for a
+   section-restricted admin without RLS visibility into `employee_master`.
 
 **RLS recursion gotcha**: a policy on `user_access` that subqueries
 `user_access` itself to check `is_admin` causes "infinite recursion detected
