@@ -9,15 +9,21 @@ export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leader
 
 export function render({ db, contentEl, filtersEl }) {
   const entities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.businessUnit)];
-  let entity = "All";
+  const legalEntities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.legalEntity)];
+  let entity = "All", legalEntity = "All";
   // Labeled "Entity" -- businessUnit now holds the real SAP Cluster value
   // ("Baladna Qatar"/"Baladna Egypt"), not an internal org grouping like it
   // did before the SAP migration (that's `division` now). This page never
   // had a filter row before; added specifically so headcount/attrition/etc.
   // here aren't silently a Qatar+Egypt blend with no way to isolate one.
+  // Legal Entity (Company) is a separate, finer split -- e.g. "Baladna
+  // Qatar" Cluster covers both Baladna Food Industries AND E Life
+  // Detergent Factory, which have their own Legal Entity value each. Same
+  // Entity + Legal Entity combo headcount.js already offers.
   filterSelect(filtersEl, { label: "Entity", options: entities, value: entity, onChange: (v) => { entity = v; draw(); } });
+  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
 
-  function inEntity(e) { return entity === "All" || e.businessUnit === entity; }
+  function inEntity(e) { return (entity === "All" || e.businessUnit === entity) && (legalEntity === "All" || e.legalEntity === legalEntity); }
   function empInEntity(employeeId) {
     const e = db.employeeIndex.get(employeeId);
     return e ? inEntity(e) : false;
@@ -30,7 +36,9 @@ export function render({ db, contentEl, filtersEl }) {
     const attrition = db.attrition.filter((a) => empInEntity(a.employeeId));
     const absenteeism = db.absenteeism.filter((a) => empInEntity(a.employeeId));
     const leave = db.leave.filter((l) => empInEntity(l.employeeId));
-    const criticalPositions = db.criticalPositions.filter(inEntity);
+    // critical_positions has no legalEntity of its own (only businessUnit),
+    // so it only respects the Entity filter, not Legal Entity.
+    const criticalPositions = db.criticalPositions.filter((p) => entity === "All" || p.businessUnit === entity);
     const criticalPositionIds = new Set(criticalPositions.map((p) => p.positionId));
     const successors = db.successors.filter((s) => criticalPositionIds.has(s.positionId));
     const stageGateScores = db.stageGateScores.filter((r) => empInEntity(r.employeeId));
