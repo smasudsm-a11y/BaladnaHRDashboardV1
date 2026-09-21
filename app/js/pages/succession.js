@@ -1,7 +1,13 @@
 import { sortedUnique, fmtInt, fmtPct, fmtDec } from "../data.js";
 import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "succession", label: "Succession Planning", subtitle: "Critical roles, incumbents, and successor readiness" };
+// dataStatus: "partial" -- critical_positions/incumbents are real, from the
+// SAP batch's Position Data (positionCriticality/vacant are real fields
+// now, not the old synthetic generator's guesses). `successors` has no
+// source anywhere in the batch, so Successor Readiness, High-Potential
+// Employees, and the "Positions Without a Named Successor" gap chart are
+// all still empty/synthetic.
+export const meta = { id: "succession", label: "Succession Planning", subtitle: "Critical roles, incumbents, and successor readiness", dataStatus: "partial" };
 
 const CRITICALITY_ORDER = ["Critical", "High", "Medium"];
 const READINESS_ORDER = ["Ready Now", "Ready 1-2 Years", "Ready 3-5 Years", "Not Ready"];

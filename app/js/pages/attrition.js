@@ -1,7 +1,12 @@
 import { sortedUnique, sortGrades, isActiveAsOf, fmtInt, fmtPct, targetDelta } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "attrition", label: "Attrition & Retention", subtitle: "Voluntary and involuntary turnover, and termination profile" };
+// dataStatus: "partial" -- `attrition` is real, from the SAP batch (though
+// voluntary_involuntary is only reliably filled for the ~44% that matched
+// a workflow record; the rest fell back to the Master List with that field
+// blank). High Performer Retention % needs `performance`, which has no
+// source at all, so that one KPI stays synthetic.
+export const meta = { id: "attrition", label: "Attrition & Retention", subtitle: "Voluntary and involuntary turnover, and termination profile", dataStatus: "partial" };
 
 function headcountAt(db, dateStr) {
   return db.employeeMaster.filter((e) => isActiveAsOf(e, dateStr)).length;

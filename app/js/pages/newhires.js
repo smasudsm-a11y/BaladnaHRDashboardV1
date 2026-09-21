@@ -1,4 +1,4 @@
-import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY } from "../data.js";
+import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard } from "../charts.js";
 
 export const meta = { id: "newhires", label: "New Hires & Onboarding", subtitle: "Who joined, and how they're distributed in their first year" };
@@ -40,7 +40,7 @@ export function render({ db, contentEl, filtersEl }) {
     const withHireSalary = starters
       .map((e) => {
         const sal = db.earliestBaseSalary.get(e.employeeId);
-        const struct = sal ? db.salaryStructureIndex.get(sal.grade) : null;
+        const struct = sal ? salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency) : null;
         return struct ? sal.baseSalary > struct.salaryMidpoint : null;
       })
       .filter((v) => v !== null);
@@ -74,7 +74,7 @@ export function render({ db, contentEl, filtersEl }) {
     const c1 = chartCard(grid, { title: "New Starters Trend", sub: "By hire month" });
     barChart(c1, { labels: months.map(monthLabel), datasets: [{ label: "New Starters", data: series }], showLegend: false });
 
-    const levelOrder = ["Staff", "Supervisory", "Managerial", "Executive"];
+    const levelOrder = JOB_LEVEL_ORDER;
     const byLevel = new Map(levelOrder.map((l) => [l, 0]));
     for (const e of starters) if (byLevel.has(e.jobLevel)) byLevel.set(e.jobLevel, byLevel.get(e.jobLevel) + 1);
     const c2 = chartCard(grid, { title: "New Starters by Job Level", drilldown: { records: starters, matchField: "jobLevel", db } });
@@ -83,8 +83,8 @@ export function render({ db, contentEl, filtersEl }) {
     const c3 = chartCard(grid, { title: "New Starters by Gender", drilldown: { records: starters, matchField: "gender", db } });
     doughnutChart(c3, { labels: ["Male", "Female"], data: [starters.length - female, female] });
 
-    const managerRows = starters.filter((e) => e.jobLevel === "Managerial" || e.jobLevel === "Executive" || e.jobLevel === "Supervisory");
-    const nonManagerRows = starters.filter((e) => !(e.jobLevel === "Managerial" || e.jobLevel === "Executive" || e.jobLevel === "Supervisory"));
+    const managerRows = starters.filter((e) => LEADERSHIP_LEVELS.includes(e.jobLevel));
+    const nonManagerRows = starters.filter((e) => !LEADERSHIP_LEVELS.includes(e.jobLevel));
     const r6m = eligible(managerRows, 6), r6n = eligible(nonManagerRows, 6);
     const r12m = eligible(managerRows, 12), r12n = eligible(nonManagerRows, 12);
     const fmt = (r) => (r ? `${r.pct.toFixed(0)}% (n=${r.n})` : "n/a");

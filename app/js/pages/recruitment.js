@@ -1,7 +1,11 @@
 import { sortedUnique, sortGrades, monthLabel, daysBetween, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "recruitment", label: "Recruitment", subtitle: "Requisition-to-hire funnel, cost, and source effectiveness" };
+// dataStatus: "needs-input" -- the `recruitment` table (Time to Offer/Hire,
+// Offer Acceptance Rate, Recruitment Cost, Requisitions) has no source in
+// the SAP export batch at all (no ATS/requisition report); only Vacancy
+// Rate and Vacant Positions are real (from employee_master/budgeted_positions).
+export const meta = { id: "recruitment", label: "Recruitment", subtitle: "Requisition-to-hire funnel, cost, and source effectiveness", dataStatus: "needs-input" };
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 

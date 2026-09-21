@@ -4,9 +4,12 @@ import { kpiCard, chartCard, barChart, doughnutChart } from "../charts.js";
 // Shares the "training" access grant — this is one row per participant in the
 // same `training` table (training_category: "New Hire Program"), not a
 // separate table, so there's no reason for it to need its own section grant.
+// dataStatus: "needs-input" -- same reason as training.js: the `training`
+// table (which this page reuses) has no source in the SAP export batch.
 export const meta = {
   id: "nhp", section: "training", sectionLabel: "Learning & Training",
   label: "New Hire Program", subtitle: "Onboarding curriculum completion for recently hired employees",
+  dataStatus: "needs-input",
 };
 
 const STATUS_ORDER = ["Completed", "In Progress", "Overdue"];

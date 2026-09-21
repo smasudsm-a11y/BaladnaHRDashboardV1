@@ -14,3 +14,13 @@
 # raw source folder never is, same reasoning as why Attendance Violations'
 # real source report was never committed either.
 /CTC/
+
+# Real, unpublished SAP HRIS exports (names, salaries, national ID data) and
+# everything derived from them before any resynthesis step -- unlike the CTC
+# pipeline above, this data is real and loaded into Supabase AS-IS (that's
+# the point of this migration), so there is no resynthesized/anonymized
+# version of it to commit instead. The generator scripts (*.ps1) and
+# RUNBOOK.md that operate on this data contain no PII and stay tracked.
+/HR Reports/
+/scripts/sap-migration/*.csv
+/scripts/sap-migration/workbooks/

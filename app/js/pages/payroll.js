@@ -1,9 +1,13 @@
 import { sortedUnique, sortGrades, sumBy, avgBy, fmtInt, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect } from "../charts.js";
 
+// dataStatus: "needs-input" -- the `payroll` table is synthetic by design
+// (see CLAUDE.md's Payroll Report gotcha); no real payroll register/payslip
+// export exists in the SAP batch.
 export const meta = {
   id: "payroll", label: "Payroll Report",
   subtitle: "Monthly gross salary, deductions, overtime, and air ticket cost",
+  dataStatus: "needs-input",
 };
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];

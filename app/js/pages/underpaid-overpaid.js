@@ -1,4 +1,4 @@
-import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney } from "../data.js";
+import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
@@ -46,9 +46,13 @@ function buildRecords(db) {
   for (const [employeeId, sal] of db.latestBaseSalary) {
     const e = db.employeeIndex.get(employeeId);
     if (!e || e.employmentStatus !== "Active") continue;
-    const struct = db.salaryStructureIndex.get(sal.grade);
+    const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
     if (!struct) continue;
     const { salaryRangeMin: min, salaryRangeMax: max } = struct;
+    // underpaidAmount/overpaidAmount stay native currency -- severityBand
+    // divides each by its own min/max, a currency-agnostic %. The *Qar
+    // variants are QAR-equivalent, for the KPI/chart totals below that sum
+    // shortfall/excess across employees who may be on QAR or EGP.
     const underpaidAmount = sal.baseSalary < min ? min - sal.baseSalary : 0;
     const overpaidAmount = sal.baseSalary > max ? sal.baseSalary - max : 0;
     const rangePenetration = ((sal.baseSalary - min) / (max - min)) * 100;
@@ -63,6 +67,8 @@ function buildRecords(db) {
       isOverpaid: overpaidAmount > 0,
       underpaidAmount,
       overpaidAmount,
+      underpaidAmountQar: toQarEquivalent(underpaidAmount, sal.currency),
+      overpaidAmountQar: toQarEquivalent(overpaidAmount, sal.currency),
       underpaidSeverity: underpaidAmount > 0 ? severityBand((underpaidAmount / min) * 100) : null,
       overpaidSeverity: overpaidAmount > 0 ? severityBand((overpaidAmount / max) * 100) : null,
       positioning: positioningBucket(rangePenetration),
@@ -75,10 +81,12 @@ function buildRecords(db) {
 export function render({ db, contentEl, filtersEl }) {
   const records = buildRecords(db);
   const bus = ["All", ...sortedUnique(records, (r) => r.businessUnit)];
-  const levels = ["All", "Staff", "Supervisory", "Managerial", "Executive"];
+  const levels = ["All", ...JOB_LEVEL_ORDER];
   let bu = "All", level = "All";
 
-  filterSelect(filtersEl, { label: "Business Unit", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  // Labeled "Entity" -- see headcount.js's comment on why (businessUnit is
+  // now the real SAP Cluster value, Qatar vs. Egypt).
+  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
   filterSelect(filtersEl, { label: "Org Level", options: levels, value: level, onChange: (v) => { level = v; draw(); } });
 
   function draw() {
@@ -86,8 +94,8 @@ export function render({ db, contentEl, filtersEl }) {
     const rows = records.filter((r) => (bu === "All" || r.businessUnit === bu) && (level === "All" || r.jobLevel === level));
     const underpaid = rows.filter((r) => r.isUnderpaid);
     const overpaid = rows.filter((r) => r.isOverpaid);
-    const underpaidTotal = sumBy(underpaid, (r) => r.underpaidAmount);
-    const overpaidTotal = sumBy(overpaid, (r) => r.overpaidAmount);
+    const underpaidTotal = sumBy(underpaid, (r) => r.underpaidAmountQar);
+    const overpaidTotal = sumBy(overpaid, (r) => r.overpaidAmountQar);
 
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
@@ -131,7 +139,7 @@ export function render({ db, contentEl, filtersEl }) {
     });
     barChart(c1, { labels: SEVERITY_BANDS, datasets: [{ label: "Employees", data: underpaidCounts }], showLegend: false });
 
-    const underpaidAmounts = SEVERITY_BANDS.map((b) => sumBy(underpaid.filter((r) => r.underpaidSeverity === b), (r) => r.underpaidAmount));
+    const underpaidAmounts = SEVERITY_BANDS.map((b) => sumBy(underpaid.filter((r) => r.underpaidSeverity === b), (r) => r.underpaidAmountQar));
     const c2 = chartCard(grid, {
       title: "Underpaid $ Shortfall by Severity", sub: "Sum of difference from grade minimum",
       drilldown: { records: underpaid, matchField: "underpaidSeverity", db },
@@ -145,7 +153,7 @@ export function render({ db, contentEl, filtersEl }) {
     });
     barChart(c3, { labels: SEVERITY_BANDS, datasets: [{ label: "Employees", data: overpaidCounts }], showLegend: false });
 
-    const overpaidAmounts = SEVERITY_BANDS.map((b) => sumBy(overpaid.filter((r) => r.overpaidSeverity === b), (r) => r.overpaidAmount));
+    const overpaidAmounts = SEVERITY_BANDS.map((b) => sumBy(overpaid.filter((r) => r.overpaidSeverity === b), (r) => r.overpaidAmountQar));
     const c4 = chartCard(grid, {
       title: "Overpaid $ Excess by Severity", sub: "Sum of difference from grade maximum",
       drilldown: { records: overpaid, matchField: "overpaidSeverity", db },
@@ -172,7 +180,7 @@ export function render({ db, contentEl, filtersEl }) {
       return inBu.length ? (inBu.filter((r) => r.category === c).length / inBu.length) * 100 : 0;
     }));
     const cPositioningBu = chartCard(buGrid, {
-      title: "Salary Positioning by Business Unit", sub: "% within range vs. underpaid vs. overpaid",
+      title: "Salary Positioning by Entity", sub: "% within range vs. underpaid vs. overpaid",
       drilldown: { records: levelFiltered, matchField: "businessUnit", db },
     });
     barChart(cPositioningBu, {
@@ -183,14 +191,14 @@ export function render({ db, contentEl, filtersEl }) {
 
     const underpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isUnderpaid).length);
     const cUnderpaidBu = chartCard(buGrid, {
-      title: "Underpaid Employees by Business Unit",
+      title: "Underpaid Employees by Entity",
       drilldown: { records: levelFiltered.filter((r) => r.isUnderpaid), matchField: "businessUnit", db },
     });
     barChart(cUnderpaidBu, { labels: buOrder, datasets: [{ label: "Underpaid", data: underpaidByBu }], showLegend: false });
 
     const overpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isOverpaid).length);
     const cOverpaidBu = chartCard(buGrid, {
-      title: "Overpaid Employees by Business Unit",
+      title: "Overpaid Employees by Entity",
       drilldown: { records: levelFiltered.filter((r) => r.isOverpaid), matchField: "businessUnit", db },
     });
     barChart(cOverpaidBu, { labels: buOrder, datasets: [{ label: "Overpaid", data: overpaidByBu }], showLegend: false });

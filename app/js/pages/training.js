@@ -1,7 +1,10 @@
 import { sortedUnique, sortGrades, withEmployeeFields, countUnique, lastNMonths, monthLabel, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "training", label: "Learning & Training", subtitle: "Training investment, completion, and compliance" };
+// dataStatus: "needs-input" -- the `training` table has no source in the
+// SAP export batch. Education and Skills Report covers formal education
+// (degrees/majors), a different concept from training courses/completion.
+export const meta = { id: "training", label: "Learning & Training", subtitle: "Training investment, completion, and compliance", dataStatus: "needs-input" };
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 

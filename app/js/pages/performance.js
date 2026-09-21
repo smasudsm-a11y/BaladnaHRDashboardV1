@@ -1,7 +1,9 @@
 import { sortedUnique, sortGrades, withEmployeeFields, countUnique, fmtInt, fmtDec, fmtPct } from "../data.js";
 import { kpiCard, chartCard, barChart, filterSelect, noteBanner } from "../charts.js";
 
-export const meta = { id: "performance", label: "Performance", subtitle: "Rating distribution, department trends, and high/low performers" };
+// dataStatus: "needs-input" -- the `performance` table has no source in the
+// SAP export batch at all (no goal/competency/rating/calibration export).
+export const meta = { id: "performance", label: "Performance", subtitle: "Rating distribution, department trends, and high/low performers", dataStatus: "needs-input" };
 
 const RATING_ORDER = ["Below Expectations", "Meets Some Expectations", "Meets Expectations", "Exceeds Expectations", "Exceptional"];
 const RATING_SCORE = Object.fromEntries(RATING_ORDER.map((r, i) => [r, i + 1]));

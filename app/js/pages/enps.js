@@ -1,7 +1,9 @@
 import { sortedUnique, avgBy, fmtInt, fmtDec, fmtPct } from "../data.js";
 import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "enps", label: "Employee Satisfaction", subtitle: "eNPS and Employee Lifecycle Score across the exit and onboarding journey" };
+// dataStatus: "needs-input" -- exit_surveys/stage_gate_scores are synthetic
+// by design (Phase J); no real source in the SAP export batch.
+export const meta = { id: "enps", label: "Employee Satisfaction", subtitle: "eNPS and Employee Lifecycle Score across the exit and onboarding journey", dataStatus: "needs-input" };
 
 const ENPS_ORDER = ["Detractor", "Passive", "Promoter"];
 const STAGE_ORDER = ["Interview", "Recruiting", "Onboarding", "Probation"];

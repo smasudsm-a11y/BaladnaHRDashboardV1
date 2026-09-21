@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "headcount", label: "Headcount & Workforce Profile", subtitle: "Trend, structure, and span of control" };
@@ -8,7 +8,10 @@ export function render({ db, contentEl, filtersEl }) {
   const legalEntities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.legalEntity)];
   let bu = "All", legalEntity = "All";
 
-  filterSelect(filtersEl, { label: "Business Unit", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  // Labeled "Entity" not "Business Unit" -- businessUnit now holds the real
+  // SAP Cluster value ("Baladna Qatar"/"Baladna Egypt"), not an internal org
+  // grouping like it did before the SAP migration (that's `division` now).
+  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
   filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
 
   function draw() {
@@ -60,15 +63,19 @@ export function render({ db, contentEl, filtersEl }) {
     const c2 = chartCard(grid, { title: "Headcount by Contract Type", drilldown: { records: active, matchField: "employeeType", db } });
     barChart(c2, { labels: ctLabels, datasets: [{ label: "Headcount", data: ctLabels.map((k) => contractCounts.get(k)) }], showLegend: false });
 
-    const levelOrder = ["Staff", "Supervisory", "Managerial", "Executive"];
+    const levelOrder = JOB_LEVEL_ORDER;
     const levelCounts = new Map(levelOrder.map((l) => [l, 0]));
     for (const e of active) if (levelCounts.has(e.jobLevel)) levelCounts.set(e.jobLevel, levelCounts.get(e.jobLevel) + 1);
     const c3 = chartCard(grid, { title: "Headcount by Organisation Level", drilldown: { records: active, matchField: "jobLevel", db } });
     barChart(c3, { labels: levelOrder, datasets: [{ label: "Headcount", data: levelOrder.map((l) => levelCounts.get(l)) }], showLegend: false });
 
-    // span of control by department: average direct-report count of managers in each department
+    // span of control by department: average direct-report count of managers
+    // in each department. "Manager" = has at least one direct report in
+    // org_hierarchy, not a job_level tier check -- more precise than
+    // guessing which of the real 9 tiers count as "management" here, since
+    // this page already has the actual reporting-line data loaded.
     const managers = active
-      .filter((e) => e.jobLevel === "Managerial" || e.jobLevel === "Executive" || e.jobLevel === "Supervisory")
+      .filter((e) => directReports.has(e.employeeId))
       .map((e) => ({ ...e, directReports: directReports.get(e.employeeId) || 0 }));
     const managersByDept = new Map();
     for (const m of managers) {

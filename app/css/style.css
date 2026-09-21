@@ -154,6 +154,20 @@ html, body {
 .nav-link:hover { background: var(--brand-primary-soft); color: var(--text-primary); }
 .nav-link.active { background: var(--brand-primary); color: #fff; font-weight: 600; }
 .nav-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .5; flex-shrink: 0; }
+.nav-dot[data-status="partial"] { background: var(--status-warning); opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-warning) 25%, transparent); }
+.nav-dot[data-status="needs-input"] { background: var(--status-critical); opacity: 1; box-shadow: 0 0 0 2px color-mix(in srgb, var(--status-critical) 25%, transparent); }
+
+/* SAP real-data migration status legend, shown above the nav groups so
+   management can read the dot colors without asking what they mean. */
+.nav-legend {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 10px 12px 14px; margin-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+.nav-legend-item {
+  display: flex; align-items: center; gap: 9px;
+  font-size: 11px; color: var(--text-muted);
+}
 
 /* Main */
 .main { flex: 1; min-width: 0; }
