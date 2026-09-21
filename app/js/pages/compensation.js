@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER } from "../data.js";
 import { kpiCard, chartCard, barChart, bin, filterSelect } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
@@ -6,7 +6,10 @@ export const meta = { id: "compensation", label: "Compensation & Pay Equity", su
 // Fixed display order (not alphabetical) — always referenced directly as this
 // array, never re-sorted, so the bucket names themselves stay plain/unprefixed.
 const BUCKET_ORDER = ["Underpaid", "1st Quartile", "2nd Quartile", "3rd Quartile", "4th Quartile", "Overpaid"];
-const TIER_ORDER = ["Junior", "Mid", "Senior", "Executive"];
+// grade_tier now uses the same real 9-tier banding as job_level (see
+// data.js's JOB_LEVEL_ORDER) -- reused directly here since it's the exact
+// same 9 values in the exact same order, not a different scheme.
+const TIER_ORDER = JOB_LEVEL_ORDER;
 
 function positioningBucket(rangePenetration) {
   if (rangePenetration === null) return null;
@@ -24,15 +27,20 @@ function buildRecords(db) {
     const e = db.employeeIndex.get(employeeId);
     if (!e || e.employmentStatus !== "Active") continue;
     const tr = db.latestTotalRewards.get(employeeId);
-    const struct = db.salaryStructureIndex.get(sal.grade);
+    const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
+    // rangePenetration/compaRatio compare against the employee's own
+    // native-currency salary_structure band, so they use sal.baseSalary
+    // as-is. baseSalary/totalCash/totalRem on the record are QAR-equivalent
+    // instead, since every KPI/chart below this point averages or sums
+    // them across employees who may be on QAR or EGP.
     const rangePenetration = struct ? ((sal.baseSalary - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null;
     out.push({
       employeeId,
       grade: sal.grade,
       gradeTier: struct ? struct.gradeTier : null,
-      baseSalary: sal.baseSalary,
-      totalCash: tr ? tr.totalCashCompensation : null,
-      totalRem: tr ? tr.totalRemuneration : null,
+      baseSalary: toQarEquivalent(sal.baseSalary, sal.currency),
+      totalCash: tr ? toQarEquivalent(tr.totalCashCompensation, sal.currency) : null,
+      totalRem: tr ? toQarEquivalent(tr.totalRemuneration, sal.currency) : null,
       businessUnit: e.businessUnit,
       jobLevel: e.jobLevel,
       gender: e.gender,
@@ -48,10 +56,12 @@ function buildRecords(db) {
 export function render({ db, contentEl, filtersEl }) {
   const records = buildRecords(db);
   const bus = ["All", ...sortedUnique(records, (r) => r.businessUnit)];
-  const levels = ["All", "Staff", "Supervisory", "Managerial", "Executive"];
+  const levels = ["All", ...JOB_LEVEL_ORDER];
   let bu = "All", level = "All";
 
-  filterSelect(filtersEl, { label: "Business Unit", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  // Labeled "Entity" -- see headcount.js's comment on why (businessUnit is
+  // now the real SAP Cluster value, Qatar vs. Egypt).
+  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
   filterSelect(filtersEl, { label: "Org Level", options: levels, value: level, onChange: (v) => { level = v; draw(); } });
 
   function draw() {
@@ -107,7 +117,7 @@ export function render({ db, contentEl, filtersEl }) {
       const f = avgBy(levelFiltered.filter((r) => r.businessUnit === b && r.gender === "Female"), (r) => r.baseSalary);
       return m ? (f / m) * 100 : 0;
     });
-    const c3 = chartCard(grid, { title: "Pay Gap Index by Business Unit", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "businessUnit", db } });
+    const c3 = chartCard(grid, { title: "Pay Gap Index by Entity", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "businessUnit", db } });
     barChart(c3, { labels: buOrder, datasets: [{ label: "Pay Gap Index", data: gapByBu.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
     const buFiltered = records.filter((r) => bu === "All" || r.businessUnit === bu);

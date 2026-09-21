@@ -108,7 +108,8 @@ const UPLOAD_UNITS = [
       {
         sheetName: "Salary Structure Data", table: "salary_structure", dateFields: [],
         fields: {
-          "Grade": "grade", "Salary Range Minimum": "salary_range_min",
+          "Grade": "grade", "Job Family": "job_family", "Currency": "currency",
+          "Salary Range Minimum": "salary_range_min",
           "Salary Midpoint": "salary_midpoint", "Salary Range Maximum": "salary_range_max",
           "Grade Tier": "grade_tier",
         },

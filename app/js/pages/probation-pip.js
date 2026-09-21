@@ -1,7 +1,9 @@
 import { sortedUnique, fmtInt, fmtPct } from "../data.js";
 import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "probation-pip", label: "Probation & PIP", subtitle: "Probation outcomes and Performance Improvement Plan success rates" };
+// dataStatus: "needs-input" -- probation_reviews/pip_records are synthetic
+// by design (Phase I); no real source in the SAP export batch.
+export const meta = { id: "probation-pip", label: "Probation & PIP", subtitle: "Probation outcomes and Performance Improvement Plan success rates", dataStatus: "needs-input" };
 
 const PROBATION_OUTCOME_ORDER = ["Confirmed", "Extended", "Not Confirmed"];
 const MONTH3_ORDER = ["Improved", "Not Improved", "Terminated"];

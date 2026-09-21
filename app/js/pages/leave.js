@@ -1,7 +1,12 @@
-import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney, toQarEquivalent } from "../data.js";
 import { kpiCard, chartCard, barChart, lineChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "leave", label: "Leave & Absence", subtitle: "Leave utilization, liability, and absenteeism" };
+// dataStatus: "partial" -- `leave` (leave requests, balance-derived
+// liability) is real, from the SAP batch. `absenteeism` (hours-based --
+// a different concept, its own separate real report outside this repo,
+// not part of this batch) still has no source, so this page's Unapproved
+// Absences and Staff/Labor absenteeism-% KPIs stay synthetic.
+export const meta = { id: "leave", label: "Leave & Absence", subtitle: "Leave utilization, liability, and absenteeism", dataStatus: "partial" };
 
 function ageBandOf(age) {
   if (age == null) return "Unknown";
@@ -47,7 +52,7 @@ export function render({ db, contentEl, filtersEl }) {
     let liability = 0;
     for (const [empId, l] of latestBalance) {
       const sal = db.latestBaseSalary.get(empId);
-      if (sal) liability += (l.leaveBalance || 0) * (sal.baseSalary / 30);
+      if (sal) liability += toQarEquivalent((l.leaveBalance || 0) * (sal.baseSalary / 30), sal.currency);
     }
 
     const totalAbsenceHours = absRows.reduce((s, a) => s + a.absenceHours, 0);

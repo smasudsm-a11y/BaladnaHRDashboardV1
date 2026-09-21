@@ -1,7 +1,12 @@
 import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtPct } from "../data.js";
 import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "headcount-forecast", label: "Headcount Forecast", subtitle: "Projected headcount trend with a 12-month confidence range" };
+// dataStatus: "partial" -- Current Headcount and the trend chart's
+// historical portion are computed live from employee_master (real, from
+// the SAP batch). The Forecast/Lower/Upper Bound series is synthetic by
+// design (see CLAUDE.md's Headcount Forecast gotcha) and predates a real
+// forecasting source.
+export const meta = { id: "headcount-forecast", label: "Headcount Forecast", subtitle: "Projected headcount trend with a 12-month confidence range", dataStatus: "partial" };
 
 const sumField = (rows, field) => rows.reduce((s, r) => s + (r[field] || 0), 0);
 

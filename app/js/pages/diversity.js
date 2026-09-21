@@ -1,7 +1,10 @@
-import { sortedUnique, sortGrades, withEmployeeFields, fmtInt, fmtPct } from "../data.js";
+import { sortedUnique, sortGrades, withEmployeeFields, fmtInt, fmtPct, JOB_LEVEL_ORDER } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
-export const meta = { id: "diversity", label: "Diversity & Inclusion", subtitle: "Workforce composition across gender, nationality, age, and leadership" };
+// dataStatus: "partial" -- gender/nationality/age/grade/management_level are
+// real (from the SAP Master List); leadershipStatus has no source and this
+// page's Leadership KPI reads it directly, so that one card is always empty.
+export const meta = { id: "diversity", label: "Diversity & Inclusion", subtitle: "Workforce composition across gender, nationality, age, and leadership", dataStatus: "partial" };
 
 export function render({ db, contentEl, filtersEl }) {
   // diversity has no legal_entity/employment_category of its own — joined in via employeeMaster.
@@ -59,7 +62,7 @@ export function render({ db, contentEl, filtersEl }) {
     const c3 = chartCard(grid, { title: "Diversity by Grade", sub: "Gender split across job grades", drilldown: { records: rows, matchField: "grade", datasetField: "gender", db } });
     barChart(c3, { labels: gradeOrder, datasets: [{ label: "Male", data: maleByGrade, stacked: true }, { label: "Female", data: femaleByGrade, stacked: true }], stacked: true });
 
-    const levelOrder = ["Staff", "Supervisory", "Managerial", "Executive"];
+    const levelOrder = JOB_LEVEL_ORDER;
     const levelCounts = levelOrder.map((l) => rows.filter((d) => d.managementLevel === l).length);
     const c4 = chartCard(grid, { title: "Headcount by Organisation Level", drilldown: { records: rows, matchField: "managementLevel", db } });
     barChart(c4, { labels: levelOrder, datasets: [{ label: "Headcount", data: levelCounts }], showLegend: false });

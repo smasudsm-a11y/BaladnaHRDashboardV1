@@ -69,9 +69,29 @@ let currentPage = exec;
 let allowedIds = new Set();
 let isAdmin = false;
 
+// Data-source status shown as a colored nav dot, for the SAP real-data
+// migration — lets management see at a glance which dashboards are already
+// running on the real SAP exports vs. which still need a real data source.
+// A page with no entry here is fully populated (SAP-sourced or otherwise
+// real) and gets the normal, uncolored dot. CTC Report is deliberately left
+// out — its own real data is coming later, separately, not judged here yet.
+const DATA_STATUS_LABEL = {
+  "partial": "Partially populated — some KPIs on this page still have no real source",
+  "needs-input": "Needs data input — this page is still substantially synthetic",
+};
+
 function buildNav(allowed, showAdmin) {
   const nav = document.getElementById("nav");
   nav.innerHTML = "";
+
+  const legend = document.createElement("div");
+  legend.className = "nav-legend";
+  legend.innerHTML = `
+    <div class="nav-legend-item"><span class="nav-dot" data-status="partial"></span><span>Partially populated</span></div>
+    <div class="nav-legend-item"><span class="nav-dot" data-status="needs-input"></span><span>Needs data input</span></div>
+  `;
+  nav.appendChild(legend);
+
   NAV.forEach((g) => {
     const visiblePages = g.pages.filter((p) => allowed.has(p.meta.id));
     if (!visiblePages.length) return;
@@ -83,7 +103,10 @@ function buildNav(allowed, showAdmin) {
       const a = document.createElement("a");
       a.className = "nav-link";
       a.href = `#${p.meta.id}`;
-      a.innerHTML = `<span class="nav-dot"></span><span>${p.meta.label}</span>`;
+      const status = p.meta.dataStatus;
+      const dotAttr = status ? ` data-status="${status}"` : "";
+      const title = status ? ` title="${DATA_STATUS_LABEL[status]}"` : "";
+      a.innerHTML = `<span class="nav-dot"${dotAttr}></span><span${title}>${p.meta.label}</span>`;
       nav.appendChild(a);
     });
   });
