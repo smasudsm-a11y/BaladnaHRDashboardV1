@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, withEmployeeFields, countUnique, fmtInt, fmtDec, fmtPct } from "../data.js";
+import { sortedUnique, sortGrades, withEmployeeFields, countUnique, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct } from "../data.js";
 import { kpiCard, chartCard, barChart, filterSelect, noteBanner } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `performance` table has no source in the
@@ -54,7 +54,7 @@ export function render({ db, contentEl, filtersEl }) {
     // table (every row is already a finalized rating), so "completed" is measured
     // against the eligible workforce rather than a draft/in-progress count that
     // doesn't exist.
-    const eligibleActive = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept)).length;
+    const eligibleActive = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
     const appraisedEmployees = countUnique(rows, (p) => p.employeeId);
     const completionPct = eligibleActive ? (appraisedEmployees / eligibleActive) * 100 : 0;
 

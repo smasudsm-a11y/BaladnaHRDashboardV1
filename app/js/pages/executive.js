@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, sortedUnique } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, sortedUnique } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, noteBanner, filterSelect } from "../charts.js";
 
 // dataStatus: "partial" -- this page rolls up attrition/leave/base_salary
@@ -26,7 +26,7 @@ export function render({ db, contentEl, filtersEl }) {
   function draw() {
     contentEl.innerHTML = "";
     const em = db.employeeMaster.filter(inEntity);
-    const active = em.filter((e) => e.employmentStatus === "Active");
+    const active = em.filter(isCurrentlyEmployed);
     const attrition = db.attrition.filter((a) => empInEntity(a.employeeId));
     const absenteeism = db.absenteeism.filter((a) => empInEntity(a.employeeId));
     const leave = db.leave.filter((l) => empInEntity(l.employeeId));
@@ -67,7 +67,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Annual leave liability approx: latest Annual balance per employee * (latest base salary / 30)
     const annualLeaveRows = leave.filter((l) => {
       const e = db.employeeIndex.get(l.employeeId);
-      return l.leaveType === "Annual" && e && e.employmentStatus === "Active";
+      return l.leaveType === "Annual" && e && isCurrentlyEmployed(e);
     });
     const latestAnnual = new Map();
     for (const row of annualLeaveRows) {
@@ -151,7 +151,7 @@ export function render({ db, contentEl, filtersEl }) {
     // convention as every other "by X" breakdown chart on a page with an X
     // filter (e.g. compensation.js's Pay Gap Index by Entity) -- otherwise
     // selecting one entity in the filter would collapse this to one bar.
-    const allActive = db.employeeMaster.filter((e) => e.employmentStatus === "Active");
+    const allActive = db.employeeMaster.filter(isCurrentlyEmployed);
     const buCounts = new Map();
     for (const e of allActive) buCounts.set(e.businessUnit, (buCounts.get(e.businessUnit) || 0) + 1);
     const buLabels = Array.from(buCounts.keys());

@@ -1,4 +1,4 @@
-import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney, toQarEquivalent } from "../data.js";
+import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney, toQarEquivalent } from "../data.js";
 import { kpiCard, chartCard, barChart, lineChart, filterSelect } from "../charts.js";
 
 // dataStatus: "partial" -- `leave` (leave requests, balance-derived
@@ -39,7 +39,7 @@ export function render({ db, contentEl, filtersEl }) {
 
     const annualRows = db.leave.filter((l) => {
       const e = db.employeeIndex.get(l.employeeId);
-      return l.leaveType === "Annual" && (dept === "All" || l.department === dept) && e && e.employmentStatus === "Active";
+      return l.leaveType === "Annual" && (dept === "All" || l.department === dept) && e && isCurrentlyEmployed(e);
     });
     const latestBalance = new Map();
     for (const l of annualRows) {
@@ -64,7 +64,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Split by workforce_category (Staff = white-collar/management tier, Labor =
     // frontline/individual-contributor tier — see 14_workforce_category.sql),
     // same framing as Power BI's separate Staff/Labor absenteeism KPIs.
-    const activeForRate = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept));
+    const activeForRate = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
     function absenceRateFor(category) {
       const hc = activeForRate.filter((e) => e.workforceCategory === category).length;
       const hours = absRows.filter((a) => db.employeeIndex.get(a.employeeId)?.workforceCategory === category).reduce((s, a) => s + a.absenceHours, 0);
