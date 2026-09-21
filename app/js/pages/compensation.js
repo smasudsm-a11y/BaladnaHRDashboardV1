@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER } from "../data.js";
+import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed } from "../data.js";
 import { kpiCard, chartCard, barChart, bin, filterSelect } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
@@ -25,7 +25,7 @@ function buildRecords(db) {
   const out = [];
   for (const [employeeId, sal] of db.latestBaseSalary) {
     const e = db.employeeIndex.get(employeeId);
-    if (!e || e.employmentStatus !== "Active") continue;
+    if (!e || !isCurrentlyEmployed(e)) continue;
     const tr = db.latestTotalRewards.get(employeeId);
     const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
     // rangePenetration/compaRatio compare against the employee's own

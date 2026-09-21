@@ -321,3 +321,15 @@ export function isActiveAsOf(e, dateStr) {
   if (e.terminationDate && e.terminationDate <= dateStr) return false;
   return true;
 }
+
+// "Currently employed" for headcount/active-population purposes -- Active,
+// Paid Leave, and Unpaid Leave all count (someone on leave is still an
+// employee); only Terminated doesn't. User confirmed this reading directly
+// (2026-09-21): their own manual Qatar headcount count included both leave
+// statuses. Use this everywhere a page currently checks
+// `employmentStatus === "Active"` for a "who's on the payroll right now"
+// figure -- isActiveAsOf() above is unrelated (a point-in-time hire/
+// termination-date check, already leave-inclusive by construction).
+export function isCurrentlyEmployed(e) {
+  return e.employmentStatus === "Active" || e.employmentStatus === "Paid Leave" || e.employmentStatus === "Unpaid Leave";
+}

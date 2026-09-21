@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, monthLabel, daysBetween, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
+import { sortedUnique, sortGrades, monthLabel, daysBetween, avgBy, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `recruitment` table (Time to Offer/Hire,
@@ -42,7 +42,7 @@ export function render({ db, contentEl, filtersEl }) {
     const filledReqs = rows.length - openReqs;
     // Proxy definition (no separate "approved positions" concept in this data
     // model): open requisitions as a share of active headcount + open requisitions.
-    const activeHC = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept)).length;
+    const activeHC = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
     const vacancyRate = (activeHC + openReqs) ? (openReqs / (activeHC + openReqs)) * 100 : 0;
 
     // Vacant Positions: budgeted headcount minus actual active headcount, per
@@ -55,7 +55,7 @@ export function render({ db, contentEl, filtersEl }) {
     const vacantPositions = budgetDepts.reduce((sum, d) => {
       const budget = db.budgetedPositionsIndex.get(d);
       if (!budget) return sum;
-      const activeInDept = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && e.department === d).length;
+      const activeInDept = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && e.department === d).length;
       return sum + Math.max(0, budget.budgetedHeadcount - activeInDept);
     }, 0);
 

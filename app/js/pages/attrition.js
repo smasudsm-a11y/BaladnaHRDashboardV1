@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, isActiveAsOf, fmtInt, fmtPct, targetDelta } from "../data.js";
+import { sortedUnique, sortGrades, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, targetDelta } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 // dataStatus: "partial" -- `attrition` is real, from the SAP batch (though
@@ -145,7 +145,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Current-state snapshot of the active workforce, not a termination trend —
     // Department applies (same dimension as the rest of this page), Year/Month
     // don't (there's no date to filter; this is "who's here today," not "who left when").
-    const activeForTenure = db.employeeMaster.filter((e) => e.employmentStatus === "Active" && (dept === "All" || e.department === dept));
+    const activeForTenure = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
     const tenureBands2 = ["0–1 yr", "1–2 yrs", "2–5 yrs", "5–8 yrs", "8+ yrs"];
     const tenureBandOf2 = (t) => (t < 1 ? "0–1 yr" : t < 2 ? "1–2 yrs" : t < 5 ? "2–5 yrs" : t < 8 ? "5–8 yrs" : "8+ yrs");
     const tenureCounts2 = tenureBands2.map((b) => activeForTenure.filter((e) => tenureBandOf2(e.lengthOfService || 0) === b).length);

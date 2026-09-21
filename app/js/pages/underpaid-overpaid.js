@@ -1,4 +1,4 @@
-import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER } from "../data.js";
+import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
@@ -45,7 +45,7 @@ function buildRecords(db) {
   const out = [];
   for (const [employeeId, sal] of db.latestBaseSalary) {
     const e = db.employeeIndex.get(employeeId);
-    if (!e || e.employmentStatus !== "Active") continue;
+    if (!e || !isCurrentlyEmployed(e)) continue;
     const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
     if (!struct) continue;
     const { salaryRangeMin: min, salaryRangeMax: max } = struct;

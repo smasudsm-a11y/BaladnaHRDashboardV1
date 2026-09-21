@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, filterSelect } from "../charts.js";
 
 export const meta = { id: "headcount", label: "Headcount & Workforce Profile", subtitle: "Trend, structure, and span of control" };
@@ -17,7 +17,7 @@ export function render({ db, contentEl, filtersEl }) {
   function draw() {
     contentEl.innerHTML = "";
     const em = db.employeeMaster.filter((e) => (bu === "All" || e.businessUnit === bu) && (legalEntity === "All" || e.legalEntity === legalEntity));
-    const active = em.filter((e) => e.employmentStatus === "Active");
+    const active = em.filter(isCurrentlyEmployed);
     const months = lastNMonths(12);
 
     const fte = active.reduce((s, e) => s + (e.fullTimePartTime === "Part Time" ? 0.5 : 1), 0);
