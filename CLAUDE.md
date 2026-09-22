@@ -4,6 +4,74 @@ A static HTML/CSS/JS dashboard (no build step, no framework) reading live from
 Supabase, deployed as a Render Static Site. Built incrementally — see "Build
 history" below for what exists and in what order it was added.
 
+## Newer than the section below: real SAP data migration (2026-09-17 to 2026-09-22)
+
+This file's "Current status" section immediately below is stale — it predates
+a full cutover from synthetic to real employee data that is NOT otherwise
+documented in this file (it happened entirely in a separate assistant
+session; only its outcome is captured here, briefly, as maintenance notes).
+`employee_master` and 8 other tables (`org_hierarchy`, `diversity`,
+`attrition`, `base_salary`, `total_rewards`, `leave`, `salary_structure`,
+`cost_centers`, `budgeted_positions`, `critical_positions`) are now real
+Qatar + Egypt SAP SuccessFactors data (3,148 employees, real employee IDs —
+no longer the synthetic `BLD-*` scheme), merged into `main` across PRs #29,
+#30, #31. `job_level` is now a real 9-tier grade banding (not the old
+4-value Staff/Supervisory/Managerial/Executive scheme) — see `JOB_LEVEL_ORDER`/
+`LEADERSHIP_LEVELS` in `app/js/data.js`. `recruitment`, `performance`,
+`training`, `payroll`, `succession`'s `successors`, `probation-pip`, and
+`enps` still have no real source in this batch — a mix of the original
+synthetic generators (recruitment/performance/training) and freshly
+regenerated synthetic placeholders keyed to the new real employee IDs
+(payroll/successors/probation-pip/enps/headcount-forecast). `ctc` stays
+untouched (separate, later, Total Rewards-only). This file's page-by-page
+"Known gotchas" write-ups below (Payroll Report, Succession Planning,
+Probation & PIP, Employee Satisfaction/eNPS, Headcount Forecast) still
+accurately describe how each module's synthetic data was originally
+designed/derived — that reasoning didn't change, only the employee
+population and IDs it's keyed to did. **Full detail lives in this
+project's assistant memory, not in this repo** — ask to have it pulled up
+if you need the complete decision trail (transform-spec decisions, the
+Entity/Legal Entity headcount reconciliation, etc.).
+
+### Cleanup — superseded pre-SAP synthetic source files removed (2026-09-22)
+
+Once the SAP data was confirmed live, the pre-cutover synthetic source files
+were deleted as redundant/stale — they duplicated data no page reads
+anymore (superseded by the real SAP data above, or by regenerated synthetic
+placeholders keyed to the new employee IDs), and 5 of their generator
+scripts were a real footgun: they still hardcoded reading the OLD,
+stale `supabase/csv/employee_master.csv` (1,510 rows, `BLD-*` IDs), so
+re-running one of them by mistake would have silently produced data for
+the wrong employee population with no error. Removed:
+- `supabase/csv/*.csv` (all 12 files — the original historical Table
+  Editor import CSVs; no longer read by anything live).
+- `Database/01_Employee_Master.xlsx` through `11_Learning_Training_Dashboard.xlsx`,
+  and `14_Payroll_Report.xlsx` through `18_Headcount_Forecast.xlsx` — all
+  superseded, either by real SAP data or by the regenerated synthetic
+  placeholders now loaded into Supabase directly (no committed workbook).
+  **Not deleted**: `12_Attendance_Violations.xlsx` (a separate real
+  population, untouched by this migration) and `13_CTC_Report.xlsx`
+  (separate Finance data, explicitly out of scope, coming later).
+- `scripts/payroll-data/`, `scripts/succession-data/`,
+  `scripts/probation-pip-data/`, `scripts/enps-data/`,
+  `scripts/headcount-forecast-data/` in full (generator + build-workbook
+  scripts + their committed CSVs). For payroll/successors/probation-pip/
+  eNPS, the real regeneration path is now `scripts/sap-migration/
+  build_payroll.ps1`/`build_successors.ps1`/`build_probation_pip.ps1`/
+  `build_enps.ps1`, which read the real SAP employee draft instead.
+  **`headcount_forecast` is the one exception, flagged rather than
+  silently left**: it was never repointed during the migration (no
+  `employee_id` FK, so it wasn't part of the migration's "7 gap tables"
+  fix) — the live table's per-division growth rates still reflect
+  trailing-12-month trends from the *old* synthetic population, not the
+  real SAP data, and now that its generator script is deleted there is no
+  existing tool to rebuild it against the real trend either. Rebuilding
+  it for real data is unstarted work, not just a script that needs
+  repointing.
+  Verified nothing else in the app or SQL migrations imports these paths
+  before deleting (only comments in `scripts/sap-migration/build_*.ps1`
+  and a few migration-file comments referenced them, descriptively).
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
@@ -423,14 +491,19 @@ later phases depend on earlier ones' tables existing.
   `xlsx.full.min.js` (SheetJS — used for both Excel export AND reading uploaded
   workbooks), `pptxgen.bundle.js` (PptxGenJS), `supabase.min.js` (Supabase JS
   client v2, global `supabase.createClient`).
-- **Excel data source**: `Database/*.xlsx` (14 workbooks) is the original
-  authoring format Total Rewards edits monthly/weekly. `PRD/HR_Analytics_Dashboard_Suite_PRD.md`
+- **Excel data source**: `Database/*.xlsx` was originally the authoring
+  format Total Rewards edited monthly/weekly, but as of the 2026-09-22
+  cleanup above only 2 of those workbooks remain committed —
+  `12_Attendance_Violations.xlsx` and `13_CTC_Report.xlsx` — everything
+  else that table fed is either real SAP data or a synthetic placeholder
+  loaded straight into Supabase with no committed workbook (see the
+  cleanup note above). `PRD/HR_Analytics_Dashboard_Suite_PRD.md`
   is the product spec (converted from the original .docx). `12_Attendance_Violations.xlsx`
-  and `14_Payroll_Report.xlsx` are synthetic-only (no real source workbook was
-  ever committed for either) — see the Attendance Violations / Payroll Report
-  gotchas below for why/how. `13_CTC_Report.xlsx` started life as real,
-  unpublished Finance data during development and was resynthesized before
-  ever being committed — see the CTC Report gotcha below for how.
+  is synthetic-only (no real source workbook was ever committed) — see the
+  Attendance Violations gotcha below for why/how. `13_CTC_Report.xlsx` started
+  life as real, unpublished Finance data during development and was
+  resynthesized before ever being committed — see the CTC Report gotcha
+  below for how.
 - This folder is **OneDrive-synced**. OneDrive AutoSave can silently touch
   `Database/*.xlsx` files (re-serializes the file — calc-chain cache, etc. —
   with zero actual content change) just from Excel opening them, even
