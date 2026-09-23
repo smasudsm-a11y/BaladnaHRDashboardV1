@@ -1,5 +1,5 @@
-import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed } from "../data.js";
-import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
 // own Manage Access checkbox — same mechanism as nhp.js sharing training's,
@@ -62,6 +62,7 @@ function buildRecords(db) {
       grade: sal.grade,
       baseSalary: sal.baseSalary,
       businessUnit: e.businessUnit,
+      legalEntity: e.legalEntity,
       jobLevel: e.jobLevel,
       isUnderpaid: underpaidAmount > 0,
       isOverpaid: overpaidAmount > 0,
@@ -80,18 +81,15 @@ function buildRecords(db) {
 
 export function render({ db, contentEl, filtersEl }) {
   const records = buildRecords(db);
-  const bus = ["All", ...sortedUnique(records, (r) => r.businessUnit)];
   const levels = ["All", ...JOB_LEVEL_ORDER];
-  let bu = "All", level = "All";
+  let level = "All";
 
-  // Labeled "Entity" -- see headcount.js's comment on why (businessUnit is
-  // now the real SAP Cluster value, Qatar vs. Egypt).
-  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Org Level", options: levels, value: level, onChange: (v) => { level = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = records.filter((r) => (bu === "All" || r.businessUnit === bu) && (level === "All" || r.jobLevel === level));
+    const rows = records.filter((r) => legalEntityAllowed(db, r.legalEntity) && (level === "All" || r.jobLevel === level));
     const underpaid = rows.filter((r) => r.isUnderpaid);
     const overpaid = rows.filter((r) => r.isOverpaid);
     const underpaidTotal = sumBy(underpaid, (r) => r.underpaidAmountQar);
@@ -160,48 +158,48 @@ export function render({ db, contentEl, filtersEl }) {
     });
     barChart(c4, { labels: SEVERITY_BANDS, datasets: [{ label: "Excess (QAR)", data: overpaidAmounts.map(Math.round) }], showLegend: false });
 
-    // "By Business Unit" section — this app is Baladna-only (single
-    // company, no Group/Cluster concept), so Business Unit stands in for
-    // the Power BI report's "by Group/Cluster/Company" breakdowns, same
-    // substitution this app makes everywhere its schema has no literal
-    // Group-wide equivalent. Respects the Org Level filter but not the
-    // page's own Business Unit filter — same convention as compensation.js's
-    // "by Business Unit" charts (selecting a single BU would otherwise
-    // collapse this to one bar).
+    // "By Legal Entity" section — this app is Baladna-only (single company,
+    // no Group/Cluster concept), so Legal Entity stands in for the Power BI
+    // report's "by Group/Cluster/Company" breakdowns, same substitution this
+    // app makes everywhere its schema has no literal Group-wide equivalent.
+    // Respects the Org Level filter but not the page's own Legal Entity
+    // filter — same convention as compensation.js's "by Legal Entity" charts
+    // (unchecking an entity would otherwise just remove its own bar instead
+    // of letting you compare across all of them).
     const buGrid = document.createElement("div");
     buGrid.className = "grid-2";
     contentEl.appendChild(buGrid);
 
     const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
-    const buOrder = sortedUnique(records, (r) => r.businessUnit).sort();
+    const leOrder = sortedUnique(records, (r) => r.legalEntity).sort();
 
-    const positioningByBu = CATEGORY_ORDER.map((c) => buOrder.map((b) => {
-      const inBu = levelFiltered.filter((r) => r.businessUnit === b);
-      return inBu.length ? (inBu.filter((r) => r.category === c).length / inBu.length) * 100 : 0;
+    const positioningByLe = CATEGORY_ORDER.map((c) => leOrder.map((l) => {
+      const inLe = levelFiltered.filter((r) => r.legalEntity === l);
+      return inLe.length ? (inLe.filter((r) => r.category === c).length / inLe.length) * 100 : 0;
     }));
-    const cPositioningBu = chartCard(buGrid, {
-      title: "Salary Positioning by Entity", sub: "% within range vs. underpaid vs. overpaid",
-      drilldown: { records: levelFiltered, matchField: "businessUnit", db },
+    const cPositioningLe = chartCard(buGrid, {
+      title: "Salary Positioning by Legal Entity", sub: "% within range vs. underpaid vs. overpaid",
+      drilldown: { records: levelFiltered, matchField: "legalEntity", db },
     });
-    barChart(cPositioningBu, {
-      labels: buOrder,
-      datasets: CATEGORY_ORDER.map((c, i) => ({ label: c, data: positioningByBu[i].map((v) => Math.round(v * 10) / 10), stacked: true })),
+    barChart(cPositioningLe, {
+      labels: leOrder,
+      datasets: CATEGORY_ORDER.map((c, i) => ({ label: c, data: positioningByLe[i].map((v) => Math.round(v * 10) / 10), stacked: true })),
       stacked: true,
     });
 
-    const underpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isUnderpaid).length);
-    const cUnderpaidBu = chartCard(buGrid, {
-      title: "Underpaid Employees by Entity",
-      drilldown: { records: levelFiltered.filter((r) => r.isUnderpaid), matchField: "businessUnit", db },
+    const underpaidByLe = leOrder.map((l) => levelFiltered.filter((r) => r.legalEntity === l && r.isUnderpaid).length);
+    const cUnderpaidLe = chartCard(buGrid, {
+      title: "Underpaid Employees by Legal Entity",
+      drilldown: { records: levelFiltered.filter((r) => r.isUnderpaid), matchField: "legalEntity", db },
     });
-    barChart(cUnderpaidBu, { labels: buOrder, datasets: [{ label: "Underpaid", data: underpaidByBu }], showLegend: false });
+    barChart(cUnderpaidLe, { labels: leOrder, datasets: [{ label: "Underpaid", data: underpaidByLe }], showLegend: false });
 
-    const overpaidByBu = buOrder.map((b) => levelFiltered.filter((r) => r.businessUnit === b && r.isOverpaid).length);
-    const cOverpaidBu = chartCard(buGrid, {
-      title: "Overpaid Employees by Entity",
-      drilldown: { records: levelFiltered.filter((r) => r.isOverpaid), matchField: "businessUnit", db },
+    const overpaidByLe = leOrder.map((l) => levelFiltered.filter((r) => r.legalEntity === l && r.isOverpaid).length);
+    const cOverpaidLe = chartCard(buGrid, {
+      title: "Overpaid Employees by Legal Entity",
+      drilldown: { records: levelFiltered.filter((r) => r.isOverpaid), matchField: "legalEntity", db },
     });
-    barChart(cOverpaidBu, { labels: buOrder, datasets: [{ label: "Overpaid", data: overpaidByBu }], showLegend: false });
+    barChart(cOverpaidLe, { labels: leOrder, datasets: [{ label: "Overpaid", data: overpaidByLe }], showLegend: false });
   }
 
   draw();

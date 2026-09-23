@@ -1,5 +1,5 @@
-import { sortedUnique, avgBy, fmtInt, fmtDec, fmtPct } from "../data.js";
-import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, avgBy, fmtInt, fmtDec, fmtPct, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- exit_surveys/stage_gate_scores are synthetic
 // by design (Phase J); no real source in the SAP export batch.
@@ -11,7 +11,7 @@ const STAGE_ORDER = ["Interview", "Recruiting", "Onboarding", "Probation"];
 function enrich(db, rows) {
   return rows.map((r) => {
     const e = db.employeeIndex.get(r.employeeId);
-    return { ...r, employeeName: e?.employeeName || r.employeeId, department: e?.department || "Unclassified" };
+    return { ...r, employeeName: e?.employeeName || r.employeeId, department: e?.department || "Unclassified", legalEntity: e?.legalEntity || null };
   });
 }
 
@@ -30,6 +30,7 @@ export function render({ db, contentEl, filtersEl }) {
   const depts = ["All", ...sortedUnique(stages, (r) => r.department).sort()];
   let year = "All", dept = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
@@ -39,9 +40,9 @@ export function render({ db, contentEl, filtersEl }) {
     // lifecycle snapshot, not a dated event series) scoped by department
     // only — same convention as every other multi-table page in this app,
     // each table filtered on whichever dimension actually applies to it.
-    const surveyRows = surveys.filter((r) =>
+    const surveyRows = surveys.filter((r) => legalEntityAllowed(db, r.legalEntity) &&
       (year === "All" || r.surveyDate?.startsWith(year)) && (dept === "All" || r.department === dept));
-    const stageRows = stages.filter((r) => dept === "All" || r.department === dept);
+    const stageRows = stages.filter((r) => legalEntityAllowed(db, r.legalEntity) && (dept === "All" || r.department === dept));
 
     const enpsScore = enpsOf(surveyRows);
     const promoters = surveyRows.filter((r) => r.enpsCategory === "Promoter").length;
@@ -75,7 +76,7 @@ export function render({ db, contentEl, filtersEl }) {
     doughnutChart(c1, { labels: ENPS_ORDER, data: enpsCounts });
 
     const yearOrder = sortedUnique(surveys, (r) => r.surveyDate?.slice(0, 4)).sort();
-    const enpsByYear = yearOrder.map((y) => enpsOf(surveys.filter((r) => r.surveyDate?.startsWith(y) && (dept === "All" || r.department === dept))));
+    const enpsByYear = yearOrder.map((y) => enpsOf(surveys.filter((r) => legalEntityAllowed(db, r.legalEntity) && r.surveyDate?.startsWith(y) && (dept === "All" || r.department === dept))));
     const c2 = chartCard(grid, { title: "eNPS Trend", sub: "By exit survey year" });
     lineChart(c2, { labels: yearOrder, datasets: [{ label: "eNPS", data: enpsByYear.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 

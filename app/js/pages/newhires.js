@@ -1,5 +1,5 @@
-import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS } from "../data.js";
-import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard } from "../charts.js";
+import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "newhires", label: "New Hires & Onboarding", subtitle: "Who joined, and how they're distributed in their first year" };
 
@@ -13,6 +13,7 @@ export function render({ db, contentEl, filtersEl }) {
   const years = ["All", ...sortedUnique(db.employeeMaster, (e) => e.hireDate?.slice(0, 4)).sort()];
   const depts = ["All", ...sortedUnique(db.employeeMaster, (e) => e.department)];
   let year = "All", month = "All", dept = "All";
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Hire Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Hire Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
@@ -20,13 +21,13 @@ export function render({ db, contentEl, filtersEl }) {
   function draw() {
     contentEl.innerHTML = "";
     // KPIs and breakdown charts: Hire Year + Hire Month + Department all apply.
-    const starters = db.employeeMaster.filter((e) => e.hireDate &&
+    const starters = db.employeeMaster.filter((e) => e.hireDate && legalEntityAllowed(db, e.legalEntity) &&
       (year === "All" || e.hireDate.startsWith(year)) &&
       (month === "All" || Number(e.hireDate.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
       (dept === "All" || e.department === dept));
     // Trend chart: Year + Department apply, but not Month — a trend restricted
     // to one month would collapse to a single point.
-    const trendStarters = db.employeeMaster.filter((e) => e.hireDate &&
+    const trendStarters = db.employeeMaster.filter((e) => e.hireDate && legalEntityAllowed(db, e.legalEntity) &&
       (year === "All" || e.hireDate.startsWith(year)) && (dept === "All" || e.department === dept));
 
     const female = starters.filter((e) => e.gender === "Female").length;

@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, monthLabel, daysBetween, avgBy, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, monthLabel, daysBetween, avgBy, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct, fmtMoney, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `recruitment` table (Time to Offer/Hire,
 // Offer Acceptance Rate, Recruitment Cost, Requisitions) has no source in
@@ -14,6 +14,12 @@ export function render({ db, contentEl, filtersEl }) {
   const depts = ["All", ...sortedUnique(db.recruitment, (r) => r.department)];
   let year = "All", month = "All", dept = "All";
 
+  // The `recruitment` table itself is pre-hire/candidate-level (no
+  // employeeId, no legalEntity of its own -- see the dataStatus note above),
+  // so the global Legal Entity filter only reaches the two KPIs below that
+  // are actually computed from employeeMaster (Vacancy Rate, Vacant
+  // Positions); every other KPI/chart on this page stays unfiltered by it.
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
@@ -42,7 +48,7 @@ export function render({ db, contentEl, filtersEl }) {
     const filledReqs = rows.length - openReqs;
     // Proxy definition (no separate "approved positions" concept in this data
     // model): open requisitions as a share of active headcount + open requisitions.
-    const activeHC = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
+    const activeHC = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
     const vacancyRate = (activeHC + openReqs) ? (openReqs / (activeHC + openReqs)) * 100 : 0;
 
     // Vacant Positions: budgeted headcount minus actual active headcount, per
@@ -55,7 +61,7 @@ export function render({ db, contentEl, filtersEl }) {
     const vacantPositions = budgetDepts.reduce((sum, d) => {
       const budget = db.budgetedPositionsIndex.get(d);
       if (!budget) return sum;
-      const activeInDept = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && e.department === d).length;
+      const activeInDept = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e) && e.department === d).length;
       return sum + Math.max(0, budget.budgetedHeadcount - activeInDept);
     }, 0);
 

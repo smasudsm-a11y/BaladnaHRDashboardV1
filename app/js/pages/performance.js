@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, withEmployeeFields, countUnique, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct } from "../data.js";
-import { kpiCard, chartCard, barChart, filterSelect, noteBanner } from "../charts.js";
+import { sortedUnique, sortGrades, withEmployeeFields, countUnique, isCurrentlyEmployed, fmtInt, fmtDec, fmtPct, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, filterSelect, noteBanner, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `performance` table has no source in the
 // SAP export batch at all (no goal/competency/rating/calibration export).
@@ -19,7 +19,7 @@ const TARGET_DISTRIBUTION = { "Below Expectations": 5, "Meets Some Expectations"
 const POST_CALIBRATION_TARGET = 3.0;
 
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.performance, ["department", "jobGrade", "terminationDate"]);
+  const enriched = withEmployeeFields(db, db.performance, ["department", "jobGrade", "terminationDate", "legalEntity"]);
   const realCycles = sortedUnique(enriched, (p) => p.performanceCycle).sort();
   const cycles = ["All", ...realCycles];
   const depts = ["All", ...sortedUnique(enriched, (p) => p.department)];
@@ -29,12 +29,13 @@ export function render({ db, contentEl, filtersEl }) {
   // the same reasoning CTC Report's pages default their Year filter away from "All".
   let cycle = realCycles[realCycles.length - 1] || "All", dept = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Performance Cycle", options: cycles, value: cycle, onChange: (v) => { cycle = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = enriched.filter((p) => (cycle === "All" || p.performanceCycle === cycle) && (dept === "All" || p.department === dept));
+    const rows = enriched.filter((p) => legalEntityAllowed(db, p.legalEntity) && (cycle === "All" || p.performanceCycle === cycle) && (dept === "All" || p.department === dept));
 
     const high = rows.filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional").length;
     const low = rows.filter((p) => p.overallRating === "Below Expectations").length;
@@ -54,7 +55,7 @@ export function render({ db, contentEl, filtersEl }) {
     // table (every row is already a finalized rating), so "completed" is measured
     // against the eligible workforce rather than a draft/in-progress count that
     // doesn't exist.
-    const eligibleActive = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
+    const eligibleActive = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e) && (dept === "All" || e.department === dept)).length;
     const appraisedEmployees = countUnique(rows, (p) => p.employeeId);
     const completionPct = eligibleActive ? (appraisedEmployees / eligibleActive) * 100 : 0;
 
@@ -118,10 +119,10 @@ export function render({ db, contentEl, filtersEl }) {
     const cycleOrder = sortedUnique(enriched, (p) => p.performanceCycle).sort();
     const c4 = chartCard(grid, {
       title: "Ratings by Cycle", sub: "Trend across performance cycles",
-      drilldown: { records: enriched.filter((p) => dept === "All" || p.department === dept), matchField: "performanceCycle", db },
+      drilldown: { records: enriched.filter((p) => legalEntityAllowed(db, p.legalEntity) && (dept === "All" || p.department === dept)), matchField: "performanceCycle", db },
     });
     const highSeries = cycleOrder.map((cy) => {
-      const cr = enriched.filter((p) => p.performanceCycle === cy && (dept === "All" || p.department === dept));
+      const cr = enriched.filter((p) => legalEntityAllowed(db, p.legalEntity) && p.performanceCycle === cy && (dept === "All" || p.department === dept));
       return cr.length ? (cr.filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional").length / cr.length) * 100 : 0;
     });
     barChart(c4, { labels: cycleOrder, datasets: [{ label: "% High Performers", data: highSeries.map((v) => Math.round(v * 10) / 10) }], showLegend: false });

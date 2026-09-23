@@ -102,6 +102,12 @@ export async function loadAll(allowedIds) {
 
   db.employeeIndex = new Map(db.employeeMaster.map((e) => [e.employeeId, e]));
 
+  // Global Legal Entity filter selection -- lives on `db` (loaded once per
+  // session, reused across every page navigation in app.js) rather than in
+  // any one page's local state, so the selection persists as you move
+  // between pages instead of resetting like every other filter does.
+  db.selectedLegalEntities = new Set(LEGAL_ENTITIES.map((le) => le.value));
+
   // Keyed by (grade, jobFamily, currency) -- grade alone is ambiguous in the
   // real SAP salary bands, and (grade, jobFamily) alone still collides
   // across countries (see 25_salary_structure_composite_key.sql). Look up
@@ -332,4 +338,28 @@ export function isActiveAsOf(e, dateStr) {
 // termination-date check, already leave-inclusive by construction).
 export function isCurrentlyEmployed(e) {
   return e.employmentStatus === "Active" || e.employmentStatus === "Paid Leave" || e.employmentStatus === "Unpaid Leave";
+}
+
+// The one global, cross-page Legal Entity filter (replaced the old per-page
+// "Entity" (Cluster/businessUnit) + "Legal Entity" (Company) two-filter
+// setup, 2026-09-23) -- value is the real employee_master.legal_entity
+// string, label is the friendly name shown in the checkbox dropdown.
+export const LEGAL_ENTITIES = [
+  { value: "Baladna Food Industries", label: "Baladna Qatar" },
+  { value: "Qatar Vision for Support and Services", label: "Egypt" },
+  { value: "E Life Detergent Factory", label: "E-Life" },
+];
+
+// True multi-select semantics: unchecking every entity means "show nothing",
+// not "show everything" -- db.selectedLegalEntities is seeded with all 3 in
+// loadAll() below so the default view is unfiltered.
+export function legalEntityAllowed(db, legalEntity) {
+  return db.selectedLegalEntities.has(legalEntity);
+}
+
+// For tables joined to employee_master via employeeId only (no legalEntity
+// of their own) -- an unknown/missing employee never passes.
+export function employeeLegalEntityAllowed(db, employeeId) {
+  const e = db.employeeIndex.get(employeeId);
+  return e ? legalEntityAllowed(db, e.legalEntity) : false;
 }

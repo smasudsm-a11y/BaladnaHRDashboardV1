@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, sumBy, avgBy, fmtInt, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, sumBy, avgBy, fmtInt, fmtMoney, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `payroll` table is synthetic by design
 // (see CLAUDE.md's Payroll Report gotcha); no real payroll register/payslip
@@ -27,6 +27,7 @@ function enrich(db, row) {
     employeeName: e?.employeeName || row.employeeId,
     department: e?.department || "Unclassified",
     division: e?.division || "Unclassified",
+    legalEntity: e?.legalEntity || null,
     workforceCategory: e?.workforceCategory || "Unclassified",
     nationality: e?.nationality || "Unknown",
     nationalityGroup: e?.nationality === "Qatari" ? "Qatari" : "Non-Qatari",
@@ -43,13 +44,14 @@ export function render({ db, contentEl, filtersEl }) {
   let year = years[years.length - 1] || "All";
   let month = "All", division = "All", workforceCategory = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: ["All", ...years], value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Division", options: ["All", ...divisions], value: division, onChange: (v) => { division = v; draw(); } });
   filterSelect(filtersEl, { label: "Workforce Category", options: ["All", ...WC_ORDER], value: workforceCategory, onChange: (v) => { workforceCategory = v; draw(); } });
 
   function matchesDivWc(r) {
-    return (division === "All" || r.division === division) && (workforceCategory === "All" || r.workforceCategory === workforceCategory);
+    return legalEntityAllowed(db, r.legalEntity) && (division === "All" || r.division === division) && (workforceCategory === "All" || r.workforceCategory === workforceCategory);
   }
   function matchesPeriod(r) {
     return (year === "All" || r.period?.startsWith(year)) &&

@@ -1,5 +1,5 @@
-import { sortedUnique, fmtInt, fmtPct, fmtDec } from "../data.js";
-import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, fmtInt, fmtPct, fmtDec, employeeLegalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- critical_positions/incumbents are real, from the
 // SAP batch's Position Data (positionCriticality/vacant are real fields
@@ -52,11 +52,22 @@ export function render({ db, contentEl, filtersEl }) {
 
   const depts = ["All", ...sortedUnique(db.criticalPositions, (p) => p.department).sort()];
   let dept = "All";
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
+
+  // critical_positions has no legalEntity of its own (only businessUnit, the
+  // now-retired Cluster concept) -- resolved via the incumbent's own
+  // legalEntity when the position is filled. A vacant position (no
+  // incumbent) has no reliable signal to filter on, so it's always included
+  // regardless of the Legal Entity selection.
+  function positionLegalEntityAllowed(positionId) {
+    const empId = db.incumbents.find((i) => i.positionId === positionId)?.employeeId;
+    return !empId || employeeLegalEntityAllowed(db, empId);
+  }
 
   function draw() {
     contentEl.innerHTML = "";
-    const posRows = db.criticalPositions.filter((p) => dept === "All" || p.department === dept);
+    const posRows = db.criticalPositions.filter((p) => positionLegalEntityAllowed(p.positionId) && (dept === "All" || p.department === dept));
     const posIds = new Set(posRows.map((p) => p.positionId));
     const incRows = incumbents.filter((i) => posIds.has(i.positionId));
     const succRows = successors.filter((s) => posIds.has(s.positionId));
