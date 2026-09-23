@@ -118,6 +118,10 @@ html, body {
   margin-top: auto; padding: 14px 10px 4px;
   border-top: 1px solid var(--border);
 }
+.last-sync {
+  font-size: 11px; color: var(--text-muted);
+  margin-bottom: 8px;
+}
 .user-email {
   font-size: 11.5px; color: var(--text-muted);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;

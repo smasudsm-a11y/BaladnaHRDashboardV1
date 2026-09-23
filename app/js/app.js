@@ -1,6 +1,7 @@
 import { loadAll } from "./data.js";
 import { exportPageToPPTX } from "./export.js";
 import { signIn, signOut, onAuthStateChange } from "./auth.js";
+import { getClient } from "./supabase-client.js";
 import { getUserAccess } from "./access.js";
 import { initZeeWidget, setPageContext, showZeeWidget, hideZeeWidget } from "./zee.js";
 import * as exec from "./pages/executive.js";
@@ -237,6 +238,27 @@ function showLogin() {
   document.getElementById("login-password").value = "";
 }
 
+// Every viewer sees this (see 27_data_refresh_log_read_access.sql), not just
+// admins -- so it's a standalone query outside loadAll()'s section-gated
+// fetch, and deliberately non-blocking (the sidebar footer just stays blank
+// on failure, e.g. the migration not having been run yet) since it's
+// supplementary context, not something the rest of the app depends on.
+async function loadLastSyncDate() {
+  const el = document.getElementById("last-sync");
+  try {
+    const { data, error } = await getClient()
+      .from("data_refresh_log")
+      .select("uploaded_at")
+      .order("uploaded_at", { ascending: false })
+      .limit(1);
+    if (error || !data || !data.length) return;
+    const d = new Date(data[0].uploaded_at);
+    el.textContent = `Last database sync: ${d.toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}`;
+  } catch (err) {
+    console.error("Failed to load last sync date:", err);
+  }
+}
+
 async function showApp(session) {
   showLoading("Loading HR data…");
   try {
@@ -253,6 +275,7 @@ async function showApp(session) {
     document.getElementById("loading").style.display = "none";
     document.getElementById("app").style.display = "flex";
     showZeeWidget();
+    loadLastSyncDate();
     route();
   } catch (err) {
     showLoading(`Failed to load: ${err.message}`);
