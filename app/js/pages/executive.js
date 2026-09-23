@@ -1,5 +1,5 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, sortedUnique } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, noteBanner, filterSelect } from "../charts.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, noteBanner, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- this page rolls up attrition/leave/base_salary
 // (real, from the SAP batch) alongside absenteeism (no source),
@@ -8,40 +8,26 @@ import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, note
 export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leadership at-a-glance across the employee lifecycle", dataStatus: "partial" };
 
 export function render({ db, contentEl, filtersEl }) {
-  const entities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.businessUnit)];
-  const legalEntities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.legalEntity)];
-  let entity = "All", legalEntity = "All";
-  // Labeled "Entity" -- businessUnit now holds the real SAP Cluster value
-  // ("Baladna Qatar"/"Baladna Egypt"), not an internal org grouping like it
-  // did before the SAP migration (that's `division` now). This page never
-  // had a filter row before; added specifically so headcount/attrition/etc.
-  // here aren't silently a Qatar+Egypt blend with no way to isolate one.
-  // Legal Entity (Company) is a separate, finer split -- e.g. "Baladna
-  // Qatar" Cluster covers both Baladna Food Industries AND E Life
-  // Detergent Factory, which have their own Legal Entity value each. Same
-  // Entity + Legal Entity combo headcount.js already offers.
-  filterSelect(filtersEl, { label: "Entity", options: entities, value: entity, onChange: (v) => { entity = v; draw(); } });
-  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
-
-  function inEntity(e) { return (entity === "All" || e.businessUnit === entity) && (legalEntity === "All" || e.legalEntity === legalEntity); }
-  function empInEntity(employeeId) {
-    const e = db.employeeIndex.get(employeeId);
-    return e ? inEntity(e) : false;
-  }
+  legalEntityFilter(filtersEl, { db, onChange: draw });
 
   function draw() {
     contentEl.innerHTML = "";
-    const em = db.employeeMaster.filter(inEntity);
+    const em = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity));
     const active = em.filter(isCurrentlyEmployed);
-    const attrition = db.attrition.filter((a) => empInEntity(a.employeeId));
-    const absenteeism = db.absenteeism.filter((a) => empInEntity(a.employeeId));
-    const leave = db.leave.filter((l) => empInEntity(l.employeeId));
-    // critical_positions has no legalEntity of its own (only businessUnit),
-    // so it only respects the Entity filter, not Legal Entity.
-    const criticalPositions = db.criticalPositions.filter((p) => entity === "All" || p.businessUnit === entity);
+    const attrition = db.attrition.filter((a) => employeeLegalEntityAllowed(db, a.employeeId));
+    const absenteeism = db.absenteeism.filter((a) => employeeLegalEntityAllowed(db, a.employeeId));
+    const leave = db.leave.filter((l) => employeeLegalEntityAllowed(db, l.employeeId));
+    // critical_positions/successors are NOT filtered by Legal Entity: the
+    // table has no legalEntity column of its own (only businessUnit, the
+    // now-retired Cluster concept), and resolving one via the incumbent
+    // would need the `incumbents` table, which the `exec` section has no RLS
+    // grant for (see data.js's SECTION_TABLES) -- a real gap, not an
+    // oversight; would need a new migration to close. Succession Coverage %
+    // below is always company-wide regardless of the filter selection.
+    const criticalPositions = db.criticalPositions;
     const criticalPositionIds = new Set(criticalPositions.map((p) => p.positionId));
     const successors = db.successors.filter((s) => criticalPositionIds.has(s.positionId));
-    const stageGateScores = db.stageGateScores.filter((r) => empInEntity(r.employeeId));
+    const stageGateScores = db.stageGateScores.filter((r) => employeeLegalEntityAllowed(db, r.employeeId));
     const months = lastNMonths(12);
 
     // Headcount / FTE
@@ -154,17 +140,18 @@ export function render({ db, contentEl, filtersEl }) {
     grid3.className = "grid-2";
     contentEl.appendChild(grid3);
 
-    // Entity headcount -- deliberately ignores this page's own Entity filter
-    // (uses the full active population, not the filtered `active`), same
-    // convention as every other "by X" breakdown chart on a page with an X
-    // filter (e.g. compensation.js's Pay Gap Index by Entity) -- otherwise
-    // selecting one entity in the filter would collapse this to one bar.
+    // Legal Entity headcount -- deliberately ignores this page's own Legal
+    // Entity filter (uses the full active population, not the filtered
+    // `active`), same convention as every other "by X" breakdown chart on a
+    // page with an X filter (e.g. compensation.js's Pay Gap Index by
+    // Entity) -- otherwise unchecking an entity in the filter would just
+    // remove its own bar instead of letting you compare across all of them.
     const allActive = db.employeeMaster.filter(isCurrentlyEmployed);
-    const buCounts = new Map();
-    for (const e of allActive) buCounts.set(e.businessUnit, (buCounts.get(e.businessUnit) || 0) + 1);
-    const buLabels = Array.from(buCounts.keys());
-    const c5 = chartCard(grid3, { title: "Headcount by Entity", tableColumns: [{ key: "bu", label: "Entity" }, { key: "n", label: "Headcount", num: true }], tableRows: buLabels.map((b) => ({ bu: b, n: buCounts.get(b) })), drilldown: { records: allActive, matchField: "businessUnit", db } });
-    barChart(c5, { labels: buLabels, datasets: [{ label: "Headcount", data: buLabels.map((b) => buCounts.get(b)) }], showLegend: false });
+    const leCounts = new Map();
+    for (const e of allActive) leCounts.set(e.legalEntity, (leCounts.get(e.legalEntity) || 0) + 1);
+    const leLabels = Array.from(leCounts.keys());
+    const c5 = chartCard(grid3, { title: "Headcount by Legal Entity", tableColumns: [{ key: "le", label: "Legal Entity" }, { key: "n", label: "Headcount", num: true }], tableRows: leLabels.map((l) => ({ le: l, n: leCounts.get(l) })), drilldown: { records: allActive, matchField: "legalEntity", db } });
+    barChart(c5, { labels: leLabels, datasets: [{ label: "Headcount", data: leLabels.map((l) => leCounts.get(l)) }], showLegend: false });
 
     // Leave taken TTM by type
     const leaveTTM = leave.filter((l) => l.leaveStatus === "Approved" && l.leaveStartDate >= ttmStart);

@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, withEmployeeFields, countUnique, lastNMonths, monthLabel, fmtInt, fmtDec, fmtPct, fmtMoney } from "../data.js";
-import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, withEmployeeFields, countUnique, lastNMonths, monthLabel, fmtInt, fmtDec, fmtPct, fmtMoney, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, lineChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- the `training` table has no source in the
 // SAP export batch. Education and Skills Report covers formal education
@@ -9,18 +9,19 @@ export const meta = { id: "training", label: "Learning & Training", subtitle: "T
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function render({ db, contentEl, filtersEl }) {
-  const enriched = withEmployeeFields(db, db.training, ["employeeName", "businessUnit", "location", "jobGrade"]);
+  const enriched = withEmployeeFields(db, db.training, ["employeeName", "businessUnit", "legalEntity", "location", "jobGrade"]);
   const years = ["All", ...sortedUnique(enriched, (t) => t.completionDate?.slice(0, 4)).sort()];
   const categories = ["All", ...sortedUnique(enriched, (t) => t.trainingCategory).sort()];
   let year = "All", month = "All", category = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Category", options: categories, value: category, onChange: (v) => { category = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = enriched.filter((t) =>
+    const rows = enriched.filter((t) => legalEntityAllowed(db, t.legalEntity) &&
       (year === "All" || t.completionDate?.startsWith(year)) &&
       (month === "All" || Number(t.completionDate?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
       (category === "All" || t.trainingCategory === category));
@@ -92,7 +93,7 @@ export function render({ db, contentEl, filtersEl }) {
     // (same convention as every other trend chart in this app).
     const months = lastNMonths(12);
     const completedByMonth = months.map((ym) =>
-      enriched.filter((t) => t.completionStatus === "Completed" && t.completionDate?.startsWith(ym) && (category === "All" || t.trainingCategory === category)).length);
+      enriched.filter((t) => legalEntityAllowed(db, t.legalEntity) && t.completionStatus === "Completed" && t.completionDate?.startsWith(ym) && (category === "All" || t.trainingCategory === category)).length);
     const c6 = chartCard(grid, { title: "Completed Courses Trend", sub: "Monthly, trailing 12 months" });
     lineChart(c6, { labels: months.map(monthLabel), datasets: [{ label: "Completed", data: completedByMonth }], showLegend: false });
 
@@ -109,7 +110,7 @@ export function render({ db, contentEl, filtersEl }) {
     // certs, not something scoped to the selected completion period — uses
     // the unfiltered `enriched` set, same convention as the Completed Courses
     // Trend chart above.
-    const complianceRows = enriched.filter((t) => t.trainingCategory === "Compliance" && t.complianceStatus);
+    const complianceRows = enriched.filter((t) => legalEntityAllowed(db, t.legalEntity) && t.trainingCategory === "Compliance" && t.complianceStatus);
     const complianceStatusOrder = ["Expired", "Expiring Soon", "Valid"];
     const complianceCounts = complianceStatusOrder.map((s) => complianceRows.filter((t) => t.complianceStatus === s).length);
     const c8 = chartCard(grid, {

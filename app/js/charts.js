@@ -1,4 +1,5 @@
 import { exportRowsToExcel, openDrilldownModal, defaultColumns } from "./export.js";
+import { LEGAL_ENTITIES } from "./data.js";
 
 function cssVar(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
@@ -307,6 +308,60 @@ export function filterSelect(container, { label, options, value, onChange }) {
   wrap.appendChild(select);
   container.appendChild(wrap);
   return select;
+}
+
+// The one global Legal Entity filter -- a checkbox-per-entity dropdown
+// (not a single-select) since selecting more than one entity at once is the
+// normal case, not an edge case. Reads/writes db.selectedLegalEntities
+// directly (see data.js) so the selection persists across page navigation;
+// `onChange` is each page's own `draw()`, called on every checkbox toggle.
+export function legalEntityFilter(container, { db, onChange }) {
+  const wrap = document.createElement("div");
+  wrap.className = "legal-entity-filter";
+  wrap.innerHTML = `<span style="color:var(--text-muted)">Legal Entity</span>`;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "legal-entity-btn";
+  const panel = document.createElement("div");
+  panel.className = "legal-entity-panel";
+
+  function summary() {
+    const n = db.selectedLegalEntities.size;
+    if (n === LEGAL_ENTITIES.length) return "All";
+    if (n === 0) return "None";
+    return LEGAL_ENTITIES.filter((le) => db.selectedLegalEntities.has(le.value)).map((le) => le.label).join(", ");
+  }
+  function refreshButton() { btn.textContent = `${summary()} ▾`; }
+
+  LEGAL_ENTITIES.forEach((le) => {
+    const row = document.createElement("label");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = db.selectedLegalEntities.has(le.value);
+    cb.addEventListener("change", () => {
+      if (cb.checked) db.selectedLegalEntities.add(le.value);
+      else db.selectedLegalEntities.delete(le.value);
+      refreshButton();
+      onChange();
+    });
+    row.appendChild(cb);
+    row.appendChild(document.createTextNode(le.label));
+    panel.appendChild(row);
+  });
+
+  btn.addEventListener("click", (evt) => {
+    evt.stopPropagation();
+    panel.classList.toggle("open");
+  });
+  panel.addEventListener("click", (evt) => evt.stopPropagation());
+  document.addEventListener("click", () => panel.classList.remove("open"));
+
+  refreshButton();
+  wrap.appendChild(btn);
+  wrap.appendChild(panel);
+  container.appendChild(wrap);
+  return wrap;
 }
 
 export function sectionTitle(container, text) {

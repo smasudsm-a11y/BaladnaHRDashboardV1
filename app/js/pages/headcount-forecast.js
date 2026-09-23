@@ -1,11 +1,13 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtPct } from "../data.js";
-import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect } from "../charts.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtPct, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- Current Headcount and the trend chart's
 // historical portion are computed live from employee_master (real, from
-// the SAP batch). The Forecast/Lower/Upper Bound series is synthetic by
-// design (see CLAUDE.md's Headcount Forecast gotcha) and predates a real
-// forecasting source.
+// the SAP batch), so the Legal Entity filter reaches those. The
+// Forecast/Lower/Upper Bound series (headcount_forecast table) is a
+// division-level aggregate with no legalEntity of its own, and is synthetic
+// by design (see CLAUDE.md's Headcount Forecast gotcha) — the filter can't
+// reach it, so it stays company-wide regardless of the selection.
 export const meta = { id: "headcount-forecast", label: "Headcount Forecast", subtitle: "Projected headcount trend with a 12-month confidence range", dataStatus: "partial" };
 
 const sumField = (rows, field) => rows.reduce((s, r) => s + (r[field] || 0), 0);
@@ -14,12 +16,13 @@ export function render({ db, contentEl, filtersEl }) {
   const divisions = ["All", ...sortedUnique(db.employeeMaster, (e) => e.division).sort()];
   let division = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Division", options: divisions, value: division, onChange: (v) => { division = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
 
-    const em = db.employeeMaster.filter((e) => division === "All" || e.division === division);
+    const em = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && (division === "All" || e.division === division));
     const months = lastNMonths(12);
 
     // The trend's last historical point deliberately uses the same
@@ -87,7 +90,7 @@ export function render({ db, contentEl, filtersEl }) {
     // isn't also narrowed by the dropdown that filters everything else.
     const allDivisions = sortedUnique(db.employeeMaster, (e) => e.division).sort();
     const lastActualCutoff = monthEnd(months[months.length - 1]);
-    const currentByDiv = allDivisions.map((d) => db.employeeMaster.filter((e) => e.division === d && isActiveAsOf(e, lastActualCutoff)).length);
+    const currentByDiv = allDivisions.map((d) => db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && e.division === d && isActiveAsOf(e, lastActualCutoff)).length);
     const forecastByDiv = allDivisions.map((d) => sumField(db.headcountForecast.filter((r) => r.division === d && r.period === lastPeriod), "forecastHeadcount"));
 
     const c2 = chartCard(grid, {

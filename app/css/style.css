@@ -200,6 +200,27 @@ html, body {
 }
 .filters select:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
 
+.legal-entity-filter { position: relative; display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+.legal-entity-btn {
+  font: inherit; font-size: 13px; padding: 7px 14px;
+  border-radius: var(--pill-radius); border: 1px solid var(--card-border);
+  background: var(--surface-1); color: var(--text-primary);
+  cursor: pointer; white-space: nowrap; max-width: 220px; overflow: hidden; text-overflow: ellipsis;
+}
+.legal-entity-btn:focus { outline: 2px solid var(--brand-primary); outline-offset: 1px; }
+.legal-entity-panel {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 20;
+  min-width: 220px; padding: 8px; border-radius: 10px;
+  border: 1px solid var(--card-border); background: var(--surface-1);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+.legal-entity-panel.open { display: flex; flex-direction: column; gap: 2px; }
+.legal-entity-panel label {
+  display: flex; align-items: center; gap: 8px; padding: 6px 8px;
+  border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 400;
+}
+.legal-entity-panel label:hover { background: var(--brand-primary-soft); }
+
 .content { padding: 22px 28px 60px; max-width: 1400px; }
 
 .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }

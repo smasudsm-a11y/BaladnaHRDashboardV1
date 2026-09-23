@@ -1,5 +1,5 @@
-import { sortedUnique, fmtInt, fmtPct } from "../data.js";
-import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, fmtInt, fmtPct, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, tableCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "needs-input" -- probation_reviews/pip_records are synthetic
 // by design (Phase I); no real source in the SAP export batch.
@@ -12,7 +12,7 @@ const MONTH6_ORDER = ["Completed Successfully", "Not Improved", "Terminated"];
 function enrich(db, rows) {
   return rows.map((r) => {
     const e = db.employeeIndex.get(r.employeeId);
-    return { ...r, employeeName: e?.employeeName || r.employeeId, department: e?.department || "Unclassified" };
+    return { ...r, employeeName: e?.employeeName || r.employeeId, department: e?.department || "Unclassified", legalEntity: e?.legalEntity || null };
   });
 }
 
@@ -24,6 +24,7 @@ export function render({ db, contentEl, filtersEl }) {
   const depts = ["All", ...sortedUnique(probation, (r) => r.department).sort()];
   let year = "All", dept = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
@@ -33,9 +34,9 @@ export function render({ db, contentEl, filtersEl }) {
     // date); PIP rows by their own pipStartDate year — each table uses the
     // date field that actually matters for it, same convention as every
     // other multi-table page in this app.
-    const probationRows = probation.filter((r) =>
+    const probationRows = probation.filter((r) => legalEntityAllowed(db, r.legalEntity) &&
       (year === "All" || r.probationStartDate?.startsWith(year)) && (dept === "All" || r.department === dept));
-    const pipRows = pip.filter((r) =>
+    const pipRows = pip.filter((r) => legalEntityAllowed(db, r.legalEntity) &&
       (year === "All" || r.pipStartDate?.startsWith(year)) && (dept === "All" || r.department === dept));
 
     const confirmedCount = probationRows.filter((r) => r.outcome === "Confirmed").length;
@@ -72,7 +73,7 @@ export function render({ db, contentEl, filtersEl }) {
     barChart(c2, { labels: deptOrder, datasets: PROBATION_OUTCOME_ORDER.map((o, i) => ({ label: o, data: byDeptOutcome[i], stacked: true })), stacked: true, horizontal: true });
 
     const yearOrder = sortedUnique(probation, (r) => r.probationStartDate?.slice(0, 4)).sort();
-    const byYearOutcome = PROBATION_OUTCOME_ORDER.map((o) => yearOrder.map((y) => probation.filter((r) => r.probationStartDate?.startsWith(y) && (dept === "All" || r.department === dept) && r.outcome === o).length));
+    const byYearOutcome = PROBATION_OUTCOME_ORDER.map((o) => yearOrder.map((y) => probation.filter((r) => legalEntityAllowed(db, r.legalEntity) && r.probationStartDate?.startsWith(y) && (dept === "All" || r.department === dept) && r.outcome === o).length));
     const c3 = chartCard(grid, { title: "Probation Outcome Trend", sub: "By hire year" });
     barChart(c3, { labels: yearOrder, datasets: PROBATION_OUTCOME_ORDER.map((o, i) => ({ label: o, data: byYearOutcome[i], stacked: true })), stacked: true });
 

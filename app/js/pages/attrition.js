@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, targetDelta } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, targetDelta, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- `attrition` is real, from the SAP batch (though
 // voluntary_involuntary is only reliably filled for the ~44% that matched
@@ -9,7 +9,7 @@ import { kpiCard, chartCard, lineChart, barChart, doughnutChart, filterSelect } 
 export const meta = { id: "attrition", label: "Attrition & Retention", subtitle: "Voluntary and involuntary turnover, and termination profile", dataStatus: "partial" };
 
 function headcountAt(db, dateStr) {
-  return db.employeeMaster.filter((e) => isActiveAsOf(e, dateStr)).length;
+  return db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isActiveAsOf(e, dateStr)).length;
 }
 
 const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -20,13 +20,14 @@ export function render({ db, contentEl, filtersEl }) {
   const depts = ["All", ...sortedUnique(db.attrition, (a) => a.department)];
   let year = "All", month = "All", dept = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: yearOptions, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = db.attrition.filter((a) =>
+    const rows = db.attrition.filter((a) => employeeLegalEntityAllowed(db, a.employeeId) &&
       (year === "All" || a.terminationDate?.startsWith(year)) &&
       (month === "All" || Number(a.terminationDate?.slice(5, 7)) - 1 === MONTH_NAMES.indexOf(month)) &&
       (dept === "All" || a.department === dept));
@@ -64,7 +65,7 @@ export function render({ db, contentEl, filtersEl }) {
       db.performance
         .filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional")
         .map((p) => p.employeeId)
-        .filter((id) => dept === "All" || db.employeeIndex.get(id)?.department === dept)
+        .filter((id) => employeeLegalEntityAllowed(db, id) && (dept === "All" || db.employeeIndex.get(id)?.department === dept))
     );
     const highPerformersTotal = highPerformerIds.size;
     const highPerformersTerminated = Array.from(highPerformerIds).filter((id) => db.employeeIndex.get(id)?.employmentStatus === "Terminated").length;
@@ -87,13 +88,13 @@ export function render({ db, contentEl, filtersEl }) {
     // Year + Department apply here (Month does not — a by-year trend can't be
     // sub-divided by month within the same chart).
     const yearlyRate = yearsInScope.map((y) => {
-      const yr = db.attrition.filter((a) => a.terminationDate?.startsWith(y) && (dept === "All" || a.department === dept));
+      const yr = db.attrition.filter((a) => employeeLegalEntityAllowed(db, a.employeeId) && a.terminationDate?.startsWith(y) && (dept === "All" || a.department === dept));
       const hc = (headcountAt(db, `${y}-01-01`) + headcountAt(db, `${y}-12-31`)) / 2 || 1;
       return (yr.length / hc) * 100;
     });
     const c1 = chartCard(grid, {
       title: "Attrition Rate Trend", sub: "Terminations ÷ average headcount, by year",
-      drilldown: { records: db.attrition.filter((a) => (year === "All" || a.terminationDate?.startsWith(year)) && (dept === "All" || a.department === dept)), matchFn: (r, label) => r.terminationDate?.startsWith(label), db },
+      drilldown: { records: db.attrition.filter((a) => employeeLegalEntityAllowed(db, a.employeeId) && (year === "All" || a.terminationDate?.startsWith(year)) && (dept === "All" || a.department === dept)), matchFn: (r, label) => r.terminationDate?.startsWith(label), db },
     });
     lineChart(c1, { labels: yearsInScope, datasets: [{ label: "Attrition Rate %", data: yearlyRate.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
@@ -145,7 +146,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Current-state snapshot of the active workforce, not a termination trend —
     // Department applies (same dimension as the rest of this page), Year/Month
     // don't (there's no date to filter; this is "who's here today," not "who left when").
-    const activeForTenure = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
+    const activeForTenure = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
     const tenureBands2 = ["0–1 yr", "1–2 yrs", "2–5 yrs", "5–8 yrs", "8+ yrs"];
     const tenureBandOf2 = (t) => (t < 1 ? "0–1 yr" : t < 2 ? "1–2 yrs" : t < 5 ? "2–5 yrs" : t < 8 ? "5–8 yrs" : "8+ yrs");
     const tenureCounts2 = tenureBands2.map((b) => activeForTenure.filter((e) => tenureBandOf2(e.lengthOfService || 0) === b).length);

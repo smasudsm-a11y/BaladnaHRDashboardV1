@@ -1,5 +1,5 @@
-import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney, toQarEquivalent } from "../data.js";
-import { kpiCard, chartCard, barChart, lineChart, filterSelect } from "../charts.js";
+import { sortedUnique, lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, daysBetween, REFERENCE_TODAY, targetDelta, fmtInt, fmtDec, fmtPct, fmtMoney, toQarEquivalent, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, lineChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- `leave` (leave requests, balance-derived
 // liability) is real, from the SAP batch. `absenteeism` (hours-based --
@@ -26,20 +26,21 @@ export function render({ db, contentEl, filtersEl }) {
   const bus = ["All", ...sortedUnique(db.leave, (l) => l.department)];
   let year = "All", month = "All", dept = "All";
 
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Year", options: years, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Month", options: ["All", ...MONTH_NAMES], value: month, onChange: (v) => { month = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: bus, value: dept, onChange: (v) => { dept = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const leaveRows = db.leave.filter((l) => (year === "All" || l.leaveStartDate?.startsWith(year)) && inMonth(l.leaveStartDate, month) && (dept === "All" || l.department === dept) && l.leaveStatus === "Approved");
-    const absRows = db.absenteeism.filter((a) => (year === "All" || a.absenceDate?.startsWith(year)) && inMonth(a.absenceDate, month) && (dept === "All" || a.department === dept));
+    const leaveRows = db.leave.filter((l) => employeeLegalEntityAllowed(db, l.employeeId) && (year === "All" || l.leaveStartDate?.startsWith(year)) && inMonth(l.leaveStartDate, month) && (dept === "All" || l.department === dept) && l.leaveStatus === "Approved");
+    const absRows = db.absenteeism.filter((a) => employeeLegalEntityAllowed(db, a.employeeId) && (year === "All" || a.absenceDate?.startsWith(year)) && inMonth(a.absenceDate, month) && (dept === "All" || a.department === dept));
 
     const totalLeaveDays = leaveRows.reduce((s, l) => s + l.leaveDays, 0);
 
     const annualRows = db.leave.filter((l) => {
       const e = db.employeeIndex.get(l.employeeId);
-      return l.leaveType === "Annual" && (dept === "All" || l.department === dept) && e && isCurrentlyEmployed(e);
+      return l.leaveType === "Annual" && (dept === "All" || l.department === dept) && e && legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e);
     });
     const latestBalance = new Map();
     for (const l of annualRows) {
@@ -64,7 +65,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Split by workforce_category (Staff = white-collar/management tier, Labor =
     // frontline/individual-contributor tier — see 14_workforce_category.sql),
     // same framing as Power BI's separate Staff/Labor absenteeism KPIs.
-    const activeForRate = db.employeeMaster.filter((e) => isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
+    const activeForRate = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isCurrentlyEmployed(e) && (dept === "All" || e.department === dept));
     function absenceRateFor(category) {
       const hc = activeForRate.filter((e) => e.workforceCategory === category).length;
       const hours = absRows.filter((a) => db.employeeIndex.get(a.employeeId)?.workforceCategory === category).reduce((s, a) => s + a.absenceHours, 0);
@@ -140,9 +141,9 @@ export function render({ db, contentEl, filtersEl }) {
     const months = lastNMonths(12);
     function monthlyRateFor(category, ym) {
       const monthEndDate = monthEnd(ym);
-      const hc = db.employeeMaster.filter((e) => isActiveAsOf(e, monthEndDate) && e.workforceCategory === category && (dept === "All" || e.department === dept)).length;
+      const hc = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && isActiveAsOf(e, monthEndDate) && e.workforceCategory === category && (dept === "All" || e.department === dept)).length;
       const hours = db.absenteeism
-        .filter((a) => a.absenceDate?.startsWith(ym) && (dept === "All" || a.department === dept) && db.employeeIndex.get(a.employeeId)?.workforceCategory === category)
+        .filter((a) => employeeLegalEntityAllowed(db, a.employeeId) && a.absenceDate?.startsWith(ym) && (dept === "All" || a.department === dept) && db.employeeIndex.get(a.employeeId)?.workforceCategory === category)
         .reduce((s, a) => s + a.absenceHours, 0);
       const scheduled = Math.max(1, hc * (260 / 12) * 8);
       return (hours / scheduled) * 100;

@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, withEmployeeFields, fmtInt, fmtPct, JOB_LEVEL_ORDER } from "../data.js";
-import { kpiCard, chartCard, barChart, doughnutChart, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, withEmployeeFields, fmtInt, fmtPct, JOB_LEVEL_ORDER, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- gender/nationality/age/grade/management_level are
 // real (from the SAP Master List); leadershipStatus has no source and this
@@ -10,14 +10,13 @@ export function render({ db, contentEl, filtersEl }) {
   // diversity has no legal_entity/employment_category of its own — joined in via employeeMaster.
   const enriched = withEmployeeFields(db, db.diversity, ["legalEntity", "employmentCategory"]);
   const grades = ["All", ...sortGrades(sortedUnique(enriched, (d) => d.grade))];
-  const legalEntities = ["All", ...sortedUnique(enriched, (d) => d.legalEntity)];
-  let grade = "All", legalEntity = "All";
+  let grade = "All";
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Grade", options: grades, value: grade, onChange: (v) => { grade = v; draw(); } });
-  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = enriched.filter((d) => (grade === "All" || d.grade === grade) && (legalEntity === "All" || d.legalEntity === legalEntity));
+    const rows = enriched.filter((d) => legalEntityAllowed(db, d.legalEntity) && (grade === "All" || d.grade === grade));
 
     const female = rows.filter((d) => d.gender === "Female").length;
     const femaleRatio = rows.length ? (female / rows.length) * 100 : 0;
@@ -71,9 +70,11 @@ export function render({ db, contentEl, filtersEl }) {
     grid2.className = "grid-2";
     contentEl.appendChild(grid2);
 
-    // Grade filter only — recruitment (pre-hire candidates) and attrition have no
-    // legal_entity of their own, and no reliable employeeId join for recruitment
-    // (candidates aren't in employeeMaster until hired), so Legal Entity doesn't apply here.
+    // Grade filter only, not Legal Entity -- recruitment (pre-hire candidates)
+    // has no reliable employeeId join at all (candidates aren't in
+    // employeeMaster until hired), so mixing a Legal-Entity-filtered
+    // attrition side with an unfilterable recruitment side would make the
+    // two halves of this chart inconsistent with each other.
     const hiresGender = { Male: 0, Female: 0 };
     for (const r of db.recruitment) if (r.joiningDate && (grade === "All" || r.jobGrade === grade)) hiresGender[r.candidateGender] = (hiresGender[r.candidateGender] || 0) + 1;
     const exitsGender = { Male: 0, Female: 0 };

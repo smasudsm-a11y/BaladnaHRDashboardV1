@@ -1,22 +1,14 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, filterSelect } from "../charts.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "headcount", label: "Headcount & Workforce Profile", subtitle: "Trend, structure, and span of control" };
 
 export function render({ db, contentEl, filtersEl }) {
-  const bus = ["All", ...sortedUnique(db.employeeMaster, (e) => e.businessUnit)];
-  const legalEntities = ["All", ...sortedUnique(db.employeeMaster, (e) => e.legalEntity)];
-  let bu = "All", legalEntity = "All";
-
-  // Labeled "Entity" not "Business Unit" -- businessUnit now holds the real
-  // SAP Cluster value ("Baladna Qatar"/"Baladna Egypt"), not an internal org
-  // grouping like it did before the SAP migration (that's `division` now).
-  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
-  filterSelect(filtersEl, { label: "Legal Entity", options: legalEntities, value: legalEntity, onChange: (v) => { legalEntity = v; draw(); } });
+  legalEntityFilter(filtersEl, { db, onChange: draw });
 
   function draw() {
     contentEl.innerHTML = "";
-    const em = db.employeeMaster.filter((e) => (bu === "All" || e.businessUnit === bu) && (legalEntity === "All" || e.legalEntity === legalEntity));
+    const em = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity));
     const active = em.filter(isCurrentlyEmployed);
     const months = lastNMonths(12);
 
@@ -25,9 +17,22 @@ export function render({ db, contentEl, filtersEl }) {
     const avgTenure = active.length ? active.reduce((s, e) => s + (e.lengthOfService || 0), 0) / active.length : 0;
 
     const ttmStart = monthEnd(months[0]);
-    const hiresTTM = em.filter((e) => e.hireDate >= ttmStart).length;
-    const exitsTTM = em.filter((e) => e.terminationDate && e.terminationDate >= ttmStart).length;
+    // Bounded at both ends, matching executive.js's own TTM calc -- without
+    // the <= REFERENCE_TODAY upper bound, this silently counted hire/exit
+    // events dated after the app's fixed "today" (real now that SAP data was
+    // exported weeks past REFERENCE_TODAY), which is what caused
+    // opening+hires-exits to not reconcile with the displayed closing figure.
+    const hiresTTM = em.filter((e) => e.hireDate >= ttmStart && e.hireDate <= REFERENCE_TODAY).length;
+    const exitsTTM = em.filter((e) => e.terminationDate && e.terminationDate >= ttmStart && e.terminationDate <= REFERENCE_TODAY).length;
     const opening = em.filter((e) => isActiveAsOf(e, ttmStart)).length;
+    // A small residual gap between opening+hires-exits and the closing
+    // figure (active.length) can still remain -- closing uses the real
+    // employment_status field (isCurrentlyEmployed) while opening/hires/exits
+    // are hire_date/termination_date based (isActiveAsOf); a handful of real
+    // SAP rows have these two signals disagree (e.g. status already
+    // "Terminated" with no termination_date populated). Not a code bug --
+    // same isActiveAsOf-vs-isCurrentlyEmployed distinction documented in
+    // CLAUDE.md's gotchas, just combined into one KPI here.
 
     // span of control: current direct reports among active employees only, restricted to this BU
     const empIds = new Set(active.map((e) => e.employeeId));

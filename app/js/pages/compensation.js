@@ -1,5 +1,5 @@
-import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed } from "../data.js";
-import { kpiCard, chartCard, barChart, bin, filterSelect } from "../charts.js";
+import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, barChart, bin, filterSelect, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
 
@@ -42,6 +42,7 @@ function buildRecords(db) {
       totalCash: tr ? toQarEquivalent(tr.totalCashCompensation, sal.currency) : null,
       totalRem: tr ? toQarEquivalent(tr.totalRemuneration, sal.currency) : null,
       businessUnit: e.businessUnit,
+      legalEntity: e.legalEntity,
       jobLevel: e.jobLevel,
       gender: e.gender,
       workforceCategory: e.workforceCategory,
@@ -55,18 +56,15 @@ function buildRecords(db) {
 
 export function render({ db, contentEl, filtersEl }) {
   const records = buildRecords(db);
-  const bus = ["All", ...sortedUnique(records, (r) => r.businessUnit)];
   const levels = ["All", ...JOB_LEVEL_ORDER];
-  let bu = "All", level = "All";
+  let level = "All";
 
-  // Labeled "Entity" -- see headcount.js's comment on why (businessUnit is
-  // now the real SAP Cluster value, Qatar vs. Egypt).
-  filterSelect(filtersEl, { label: "Entity", options: bus, value: bu, onChange: (v) => { bu = v; draw(); } });
+  legalEntityFilter(filtersEl, { db, onChange: draw });
   filterSelect(filtersEl, { label: "Org Level", options: levels, value: level, onChange: (v) => { level = v; draw(); } });
 
   function draw() {
     contentEl.innerHTML = "";
-    const rows = records.filter((r) => (bu === "All" || r.businessUnit === bu) && (level === "All" || r.jobLevel === level));
+    const rows = records.filter((r) => legalEntityAllowed(db, r.legalEntity) && (level === "All" || r.jobLevel === level));
 
     const avgCTC = avgBy(rows, (r) => r.totalCash || 0);
     const avgCompa = avgBy(rows.filter((r) => r.compaRatio !== null), (r) => r.compaRatio);
@@ -108,25 +106,25 @@ export function render({ db, contentEl, filtersEl }) {
     barChart(c2, { labels: binLabels, datasets: [{ label: "Employees", data: counts }], showLegend: false });
 
     // Each breakdown chart respects the OTHER filter but not its own dimension
-    // (selecting a single Business Unit would otherwise collapse "by Business
-    // Unit" to one bar) — same convention as every other breakdown chart in the app.
+    // (selecting a single Legal Entity would otherwise collapse "by Legal
+    // Entity" to one bar) — same convention as every other breakdown chart in the app.
     const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
-    const buOrder = sortedUnique(records, (r) => r.businessUnit).sort();
-    const gapByBu = buOrder.map((b) => {
-      const m = avgBy(levelFiltered.filter((r) => r.businessUnit === b && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(levelFiltered.filter((r) => r.businessUnit === b && r.gender === "Female"), (r) => r.baseSalary);
+    const leOrder = sortedUnique(records, (r) => r.legalEntity).sort();
+    const gapByLe = leOrder.map((l) => {
+      const m = avgBy(levelFiltered.filter((r) => r.legalEntity === l && r.gender === "Male"), (r) => r.baseSalary);
+      const f = avgBy(levelFiltered.filter((r) => r.legalEntity === l && r.gender === "Female"), (r) => r.baseSalary);
       return m ? (f / m) * 100 : 0;
     });
-    const c3 = chartCard(grid, { title: "Pay Gap Index by Entity", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "businessUnit", db } });
-    barChart(c3, { labels: buOrder, datasets: [{ label: "Pay Gap Index", data: gapByBu.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+    const c3 = chartCard(grid, { title: "Pay Gap Index by Legal Entity", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "legalEntity", db } });
+    barChart(c3, { labels: leOrder, datasets: [{ label: "Pay Gap Index", data: gapByLe.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
-    const buFiltered = records.filter((r) => bu === "All" || r.businessUnit === bu);
+    const leFiltered = records.filter((r) => legalEntityAllowed(db, r.legalEntity));
     const gapByLevel = levels.slice(1).map((l) => {
-      const m = avgBy(buFiltered.filter((r) => r.jobLevel === l && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(buFiltered.filter((r) => r.jobLevel === l && r.gender === "Female"), (r) => r.baseSalary);
+      const m = avgBy(leFiltered.filter((r) => r.jobLevel === l && r.gender === "Male"), (r) => r.baseSalary);
+      const f = avgBy(leFiltered.filter((r) => r.jobLevel === l && r.gender === "Female"), (r) => r.baseSalary);
       return m ? (f / m) * 100 : 0;
     });
-    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records: buFiltered, matchField: "jobLevel", db } });
+    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records: leFiltered, matchField: "jobLevel", db } });
     barChart(c4, { labels: levels.slice(1), datasets: [{ label: "Pay Gap Index", data: gapByLevel.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
     const bucketCounts = BUCKET_ORDER.map((b) => rows.filter((r) => r.positioning === b).length);
