@@ -66,6 +66,14 @@ function toCamel(row) {
   for (const [k, v] of Object.entries(row)) {
     out[k.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase())] = v;
   }
+  // The real SAP export's gender column is a single-letter code ("M"/"F"),
+  // not "Male"/"Female" -- normalized here, once, for every table that has
+  // a `gender` column (employee_master, diversity, attrition all reload
+  // from the SAP source), since every page's gender chart/KPI already
+  // compares against the full word. `candidate_gender` (recruitment, never
+  // touched by the SAP migration) is a different key and untouched by this.
+  if (out.gender === "M") out.gender = "Male";
+  else if (out.gender === "F") out.gender = "Female";
   return out;
 }
 

@@ -1,5 +1,16 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, sortedUnique, sortGrades, fmtInt, fmtDec, REFERENCE_TODAY, JOB_LEVEL_ORDER, legalEntityAllowed } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, legalEntityFilter } from "../charts.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, sortedUnique, sortGrades, fmtInt, fmtDec, fmtPct, REFERENCE_TODAY, JOB_LEVEL_ORDER, legalEntityAllowed } from "../data.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, legalEntityFilter } from "../charts.js";
+
+const AGE_BANDS = ["<25", "25-30", "31-35", "36-40", "41-50", ">50"];
+function ageBandOf(age) {
+  if (age == null) return "Unknown";
+  if (age < 25) return "<25";
+  if (age <= 30) return "25-30";
+  if (age <= 35) return "31-35";
+  if (age <= 40) return "36-40";
+  if (age <= 50) return "41-50";
+  return ">50";
+}
 
 export const meta = { id: "headcount", label: "Headcount & Workforce Profile", subtitle: "Trend, structure, and span of control" };
 
@@ -45,6 +56,12 @@ export function render({ db, contentEl, filtersEl }) {
     const spans = Array.from(directReports.values());
     const avgSpan = spans.length ? spans.reduce((a, b) => a + b, 0) / spans.length : 0;
 
+    // "Local" = Qatari nationals. Real SAP `nationality` is a country name
+    // ("Qatar"), not the demonym ("Qatari") -- Baladna's own workforce is
+    // heavily expat, so this is a genuinely small number, not a data bug.
+    const localCount = active.filter((e) => e.nationality === "Qatar").length;
+    const localPct = active.length ? (localCount / active.length) * 100 : 0;
+
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -53,6 +70,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Average Age", value: fmtDec(avgAge, 1), note: "years" });
     kpiCard(kpiRow, { label: "Average Tenure", value: fmtDec(avgTenure, 1), note: "years of service" });
     kpiCard(kpiRow, { label: "Span of Control", value: fmtDec(avgSpan, 1), note: `avg direct reports across ${spans.length} managers` });
+    kpiCard(kpiRow, { label: "Locals (Qatari)", value: fmtInt(localCount), note: `${fmtPct(localPct)} of active headcount` });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -130,6 +148,27 @@ export function render({ db, contentEl, filtersEl }) {
       drilldown: { records: active, matchField: "positionTitle", db },
     });
     barChart(c8, { labels: posLabels, datasets: [{ label: "Headcount", data: posValues }], horizontal: true, showLegend: false });
+
+    const female = active.filter((e) => e.gender === "Female").length;
+    const c9 = chartCard(grid, { title: "Headcount by Gender", drilldown: { records: active, matchField: "gender", db } });
+    doughnutChart(c9, { labels: ["Male", "Female"], data: [active.length - female, female] });
+
+    const natCounts = new Map();
+    for (const e of active) natCounts.set(e.nationality, (natCounts.get(e.nationality) || 0) + 1);
+    const natSorted = Array.from(natCounts.entries()).sort((a, b) => b[1] - a[1]);
+    const topNat = natSorted.slice(0, 8);
+    const otherNat = natSorted.slice(8).reduce((s, [, n]) => s + n, 0);
+    const natLabels = [...topNat.map(([n]) => n), ...(otherNat ? ["Other"] : [])];
+    const natValues = [...topNat.map(([, n]) => n), ...(otherNat ? [otherNat] : [])];
+    const c10 = chartCard(grid, { title: "Headcount by Nationality", sub: "Top nationalities by active headcount", drilldown: { records: active, matchField: "nationality", db } });
+    barChart(c10, { labels: natLabels, datasets: [{ label: "Headcount", data: natValues }], horizontal: true, showLegend: false });
+
+    const ageCounts = AGE_BANDS.map((b) => active.filter((e) => ageBandOf(e.age) === b).length);
+    const c11 = chartCard(grid, {
+      title: "Headcount by Age Group",
+      drilldown: { records: active, matchFn: (r, label) => ageBandOf(r.age) === label, db },
+    });
+    barChart(c11, { labels: AGE_BANDS, datasets: [{ label: "Headcount", data: ageCounts }], showLegend: false });
   }
 
   draw();
