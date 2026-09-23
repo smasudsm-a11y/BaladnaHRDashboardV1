@@ -35,6 +35,83 @@ function destroyIfExists(canvas) {
   if (existing) { existing.destroy(); registry.delete(canvas); }
 }
 
+// Draws each element's value permanently on the chart -- off by default (the
+// interactive dashboard already has hover tooltips, so this would just be
+// clutter) and switched on only for the brief moment export.js snapshots a
+// canvas for PPT export, since a static image has no hover to fall back on.
+// Toggled via `setExportLabelsEnabled`/a WeakSet keyed on the chart instance,
+// NOT by mutating `chart.options.plugins.*` directly -- Chart.js v4 wraps
+// `options` in a reactive proxy for its own change detection, and writing a
+// nested plugin-options object into it blew the call stack (a real bug
+// caught while testing this, not a hypothetical) instead of just failing
+// quietly. A WeakSet sidesteps that proxy entirely.
+const exportLabelsEnabled = new WeakSet();
+export function setExportLabelsEnabled(canvas, enabled) {
+  const chart = registry.get(canvas);
+  if (!chart) return;
+  if (enabled) exportLabelsEnabled.add(chart);
+  else exportLabelsEnabled.delete(chart);
+  // chart.draw() paints synchronously in the same tick, unlike update()
+  // (even with the 'none' animation mode), which can still hand the actual
+  // repaint off to a requestAnimationFrame callback -- confirmed by testing
+  // this directly, not assumed: export.js calls canvas.toDataURL()
+  // immediately after this returns, so a deferred repaint would snapshot
+  // the canvas before the labels (or their removal) actually landed.
+  chart.draw();
+}
+function formatLabelValue(v) {
+  if (v == null) return null;
+  const n = Number(v);
+  if (Number.isNaN(n)) return null;
+  if (n === 0) return null;
+  return Math.abs(n) >= 1000 ? n.toLocaleString("en-US", { maximumFractionDigits: 1 }) : (Number.isInteger(n) ? String(n) : n.toFixed(1));
+}
+
+const exportDataLabelsPlugin = {
+  id: "exportDataLabels",
+  afterDatasetsDraw(chart) {
+    if (!exportLabelsEnabled.has(chart)) return;
+    const { ctx } = chart;
+    const type = chart.config.type;
+    const horizontal = chart.options.indexAxis === "y";
+    const { primary } = ink();
+    ctx.save();
+    ctx.font = "600 11px sans-serif";
+    ctx.textBaseline = "middle";
+    chart.data.datasets.forEach((dataset, di) => {
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach((el, i) => {
+        const text = formatLabelValue(dataset.data[i]);
+        if (!text) return;
+        const pos = typeof el.tooltipPosition === "function" ? el.tooltipPosition() : { x: el.x, y: el.y };
+        if (type === "doughnut") {
+          ctx.textAlign = "center";
+          ctx.fillStyle = "#ffffff";
+          ctx.shadowColor = "rgba(0,0,0,0.7)";
+          ctx.shadowBlur = 3;
+          ctx.fillText(text, pos.x, pos.y);
+          ctx.shadowBlur = 0;
+        } else if (type === "line") {
+          ctx.textAlign = "center";
+          ctx.fillStyle = primary;
+          ctx.fillText(text, pos.x, pos.y - 10);
+        } else if (horizontal) {
+          ctx.textAlign = "left";
+          ctx.fillStyle = primary;
+          ctx.fillText(text, pos.x + 6, pos.y);
+        } else {
+          ctx.textAlign = "center";
+          ctx.fillStyle = primary;
+          ctx.fillText(text, pos.x, pos.y - 8);
+        }
+      });
+    });
+    ctx.restore();
+  },
+};
+Chart.register(exportDataLabelsPlugin);
+
 function baseScales(extra = {}) {
   const { grid, muted, baseline } = ink();
   return {

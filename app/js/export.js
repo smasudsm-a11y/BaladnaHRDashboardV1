@@ -1,4 +1,5 @@
 import { emp } from "./data.js";
+import { setExportLabelsEnabled } from "./charts.js";
 
 const PRIORITY_FIELDS = [
   "employeeId", "employeeName", "employeeNumber", "candidateId",
@@ -223,11 +224,20 @@ export function exportPageToPPTX({ pageTitle, pageSubtitle, contentEl, filenameP
     const table = card.querySelector("table.data-table");
 
     if (canvas) {
+      // Chart.js only ever shows values via hover tooltips, which a static
+      // PPT image can't reproduce -- briefly flip on the exportDataLabels
+      // plugin (registered globally in charts.js, off by default so the
+      // live interactive dashboard isn't cluttered with permanent labels)
+      // so this one snapshot captures the values baked into the image,
+      // then immediately revert so the on-screen chart looks unchanged.
+      setExportLabelsEnabled(canvas, true);
       try {
         const dataUrl = canvas.toDataURL("image/png", 1.0);
         slide.addImage({ data: dataUrl, x: 1.5, y: 1.3, w: 10.3, h: 5.6, sizing: { type: "contain", w: 10.3, h: 5.6 } });
       } catch (err) {
         slide.addText("Chart image unavailable.", { x: 0.5, y: 2, w: 10, h: 1, fontSize: 14, color: "898781" });
+      } finally {
+        setExportLabelsEnabled(canvas, false);
       }
     } else if (table) {
       const rows = Array.from(table.querySelectorAll("tr")).slice(0, 20).map((tr) =>
