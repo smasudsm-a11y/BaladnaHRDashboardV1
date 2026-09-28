@@ -31,6 +31,7 @@ const TABLES = {
   stageGateScores: "stage_gate_scores",
   headcountForecast: "headcount_forecast",
   initiatives: "initiatives",
+  employeeBenefits: "employee_benefits",
 };
 
 // Mirrors the RLS policies in supabase/06_section_based_access.sql: which raw
@@ -44,7 +45,7 @@ const SECTION_TABLES = {
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
-  compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure"],
+  compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure", "employee_benefits"],
   attrition: ["employee_master", "attrition", "performance", "kpi_targets"],
   leave: ["leave", "absenteeism", "employee_master", "base_salary", "kpi_targets"],
   performance: ["performance", "employee_master"],
@@ -124,6 +125,8 @@ export async function loadAll(allowedIds) {
   db.salaryStructureIndex = new Map(db.salaryStructure.map((s) => [`${s.grade}|${s.jobFamily}|${s.currency}`, s]));
 
   db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
+
+  db.employeeBenefitsIndex = new Map(db.employeeBenefits.map((b) => [b.employeeId, b]));
 
   db.budgetedPositionsIndex = new Map(db.budgetedPositions.map((b) => [b.department, b]));
 

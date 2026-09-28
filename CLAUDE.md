@@ -72,6 +72,46 @@ the wrong employee population with no error. Removed:
   before deleting (only comments in `scripts/sap-migration/build_*.ps1`
   and a few migration-file comments referenced them, descriptively).
 
+### Employee Benefits — new module from a previously "dead" SAP file (2026-09-28)
+
+`Test3-Page1-Component1 (4).xlsx` (Job Info, 147 columns) was flagged during
+the original migration as unusable — its `Person Id` column (SuccessFactors'
+internal id, e.g. `128794`) matches nothing in `employee_master`. Re-examined
+directly and found the file actually has a **second, differently-cased**
+`Person ID` column (uppercase D) that matches `employee_master.employee_id`
+100% (3,148/3,148, verified directly) — almost certainly why the original
+join attempt failed silently: PowerShell's native `@{}` hashtable is
+case-**insensitive** for string keys, so any header-indexing code that reads
+`$h["Person Id"]` after building the index with `@{}` collapses both
+columns into one entry and silently keeps whichever was written first (the
+wrong one). `scripts/sap-migration/build_employee_benefits.ps1` uses a
+case-sensitive `Dictionary[string,int]` with `[StringComparer]::Ordinal`
+specifically to avoid this. Also discovered while checking: `FTE` is `1`
+for 3,393 of 3,394 Test3 rows and its "Employment Type" is Permanent/
+Probationer, not Full-Time/Part-Time — so `employee_master.full_time_part_time`'s
+hardcoded `"Full Time"` for everyone (see the migration's "Things flagged"
+list above) is not actually a gap; there's no real part-time population in
+this data to recover, and it was left as-is.
+
+New table `employee_benefits` (`28_employee_benefits.sql`) — real non-cash
+CTC benefit values per employee (Housing/Transportation/Communication/
+Education/Medical Insurance), Air Ticket entitlement (`ticket_class`/
+`ticket_cycle`), and OT/Variable Pay eligibility. One row per employee, a
+current-snapshot join like `headcount_forecast`/`critical_positions`, not a
+dated history. Shares Compensation's access grant (`meta.section`, same
+mechanism as `total_rewards`) rather than a new section id, plus the
+`division_allowed()` divisional-access join, same pattern as
+`24_divisional_access.sql`'s `total_rewards` policy. New "21 — Employee
+Benefits" Data Refresh card, its own (not bundled into "07 — Compensation
+Dashboard") since it refreshes on a different cadence, upserted by
+`employee_id` like `employee_master`. `scripts/sap-migration/
+build_employee_benefits.ps1` (Test3 → `employee_benefits_draft.csv`) and
+`build_employee_benefits_workbook.ps1` (CSV → `21_Employee_Benefits.xlsx`)
+are the generator/build pair, same shape as every other Round-2/SAP-era
+module. No dashboard page reads this table yet — this pass was scoped to
+the join + pipeline only, per explicit user direction; the actual Total
+Compensation Statement analysis is a separate, later piece of work.
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
@@ -980,6 +1020,19 @@ row_division)` rather than an inline `user_access` subquery.
     for the full per-table breakdown of how each resolves its division
     (direct column, joined via `employee_master`/`critical_positions`, or
     joined by department name) and which tables are deliberately excluded.
+
+(25–27 — `salary_structure` composite key, old-employee_master cleanup, and
+widening `data_refresh_log` read access — aren't detailed here individually;
+see the SAP migration section above and this file's own "Last database
+sync" feature notes for 27's reasoning.)
+
+28. `28_employee_benefits.sql` — new `employee_benefits` table (real SAP
+    Test3/Job Info non-cash benefits data — Housing/Transportation/
+    Communication/Education/Medical Insurance CTC, Air Ticket entitlement,
+    OT/Variable Pay eligibility). Shares Compensation's access grant plus
+    the `division_allowed()` join, same pattern as `total_rewards`. See
+    the "Employee Benefits" section above for the join-key story and why
+    this table exists.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
