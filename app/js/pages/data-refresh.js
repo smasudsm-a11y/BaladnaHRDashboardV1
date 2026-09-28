@@ -371,6 +371,26 @@ const UPLOAD_UNITS = [
       fields: { "Name": "name", "Status": "status" },
     }],
   },
+  {
+    id: "employee_benefits", fileLabel: "21 — Employee Benefits",
+    sheets: [{
+      // Real SAP Job Info benefits data (see 28_employee_benefits.sql) — a
+      // current-snapshot join, not a dated history, and refreshed on its own
+      // cadence separate from Base Salary/Total Rewards, hence its own card
+      // rather than a 4th sheet on "07 — Compensation Dashboard". Upserted by
+      // employee_id, same reasoning as employee_master.
+      sheetName: "Employee Benefits Data", table: "employee_benefits", dateFields: [],
+      upsertKey: "employee_id",
+      fields: {
+        "Employee ID": "employee_id", "Employment Type": "employment_type",
+        "Housing CTC": "housing_ctc", "Transportation CTC": "transportation_ctc",
+        "Communication Allowance": "communication_allowance", "Education Allowance": "education_allowance",
+        "Medical Insurance Expense": "medical_insurance_expense", "Ticket Class": "ticket_class",
+        "Ticket Cycle": "ticket_cycle", "OT Eligibility": "ot_eligibility",
+        "Variable Pay Eligibility": "variable_pay_eligibility",
+      },
+    }],
+  },
 ];
 
 function toIsoDate(v) {
