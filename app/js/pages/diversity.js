@@ -7,8 +7,8 @@ import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityF
 export const meta = { id: "diversity", label: "Diversity & Inclusion", subtitle: "Workforce composition across gender, nationality, age, and leadership", dataStatus: "partial" };
 
 export function render({ db, contentEl, filtersEl }) {
-  // diversity has no legal_entity/employment_category of its own — joined in via employeeMaster.
-  const enriched = withEmployeeFields(db, db.diversity, ["legalEntity", "employmentCategory"]);
+  // diversity has no legal_entity of its own — joined in via employeeMaster.
+  const enriched = withEmployeeFields(db, db.diversity, ["legalEntity"]);
   const grades = ["All", ...sortGrades(sortedUnique(enriched, (d) => d.grade))];
   let grade = "All";
   legalEntityFilter(filtersEl, { db, onChange: draw });
@@ -24,7 +24,13 @@ export function render({ db, contentEl, filtersEl }) {
     const femaleLeaders = leaders.filter((d) => d.gender === "Female").length;
     const womenInLeadership = leaders.length ? (femaleLeaders / leaders.length) * 100 : 0;
     const nationalities = new Set(rows.map((d) => d.nationality)).size;
-    const local = rows.filter((d) => d.employmentCategory === "Local").length;
+    // "Local" = Qatari nationals. employmentCategory now holds Direct/Indirect
+    // (a real, but different, concept post-SAP-migration -- see
+    // employee_master's employment_category) -- this KPI/chart had been
+    // silently reading 0% since the cutover by checking employmentCategory
+    // === "Local", a value that no longer exists. Same nationality-based
+    // definition as headcount.js's "Locals (Qatari)" KPI.
+    const local = rows.filter((d) => d.nationality === "Qatar").length;
     const localizationRate = rows.length ? (local / rows.length) * 100 : 0;
 
     const kpiRow = document.createElement("div");
@@ -85,7 +91,10 @@ export function render({ db, contentEl, filtersEl }) {
       datasets: [{ label: "Hires In", data: [hiresGender.Male, hiresGender.Female] }, { label: "Exits Out", data: [exitsGender.Male, exitsGender.Female] }],
     });
 
-    const c6 = chartCard(grid2, { title: "Workforce by Employment Category", sub: "Local vs. Expatriate", drilldown: { records: rows, matchField: "employmentCategory", db } });
+    const c6 = chartCard(grid2, {
+      title: "Workforce by Nationality Category", sub: "Local (Qatari) vs. Expatriate",
+      drilldown: { records: rows, matchFn: (r, label) => (label === "Local") === (r.nationality === "Qatar"), db },
+    });
     doughnutChart(c6, { labels: ["Local", "Expatriate"], data: [local, rows.length - local] });
   }
 
