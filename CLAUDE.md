@@ -155,6 +155,48 @@ join — it's capturing this cleanly going forward (per new hire, at time of
 hire) rather than trying to reconstruct history Position Data doesn't
 preserve.
 
+### Merit Increase & Promotions — investigation in progress, paused mid-session (2026-09-29)
+
+`report_Merit_Increase_and_Promotions_List.csv` (one of the original 12 SAP
+exports) looked, from its filename alone, like a Baladna employee-action
+history. It is not, mostly: **154,683 rows, 59,601 distinct employees,
+150+ company codes** — this is a **Group-wide extract** covering Power
+International Holding's whole portfolio, not Baladna specifically. Verified
+directly, not assumed.
+
+**Baladna's own company codes**, found via `report_Personal_Information.csv`'s
+own `Company` column format (`"1500-Baladna Food Industries"` etc.):
+`1500`=Baladna Food Industries, `1510`=BALADNA El Djazair (Algeria, out of
+this app's scope), `1520`=Qatar Vision for Support and Services (Egypt),
+`1530`=Baladna Food Industries LLC, `1540`=E Life Detergent Factory.
+Filtering the Merit Increase file to just these 5 codes: **1,698 rows,
+1,331 distinct employees, 1,294 (97%) of whom match real `employee_master.employee_id`
+directly** — a real, joinable, Baladna-scoped slice hiding inside a much
+larger irrelevant file.
+
+**Event-reason codes** (`ESC-PR`, `ESC-SL`, `ESC-JR`, `ESC-BA`, `ESC-PRT`,
+plus rarer `ESC-SA`/`ESC-SR`/`ESC-JRSA`/`ESC-JRBA`/`ESC-TLECHGSA`) — user-
+confirmed legend for the 5 main ones: `ESC-PR`=Promotion, `ESC-BA`=Benefit
+Adjustment, `ESC-SL`=Merit Increase, `ESC-JR`=Job Regrade, `ESC-PRT`=Promotion
+due to Transfer. (`SL`=Merit Increase and `JR`=Job Regrade — both corrected
+from an earlier, wrong guess earlier in the same session that these meant
+"Employee status change" and "Job Review" respectively; don't trust that
+earlier guess if it surfaces anywhere.) The 5 rarer codes are still
+**unconfirmed** — `ESC-SA` alone is 4,218 rows group-wide, not
+negligible.
+
+**Left unfinished, paused for a context-window handoff, not a data
+blocker**: getting the actual per-code row/employee counts *within* the
+1,698-row Baladna-scoped slice specifically (group-wide counts are known;
+Baladna-specific ones aren't yet). The PowerShell attempt to compute this
+hit a scoping error (a `StreamReader` going null mid-loop when the command
+got moved to a background task after a 120s timeout) — not a data problem,
+just re-run it (ideally via the synchronous PowerShell tool, not Bash's
+background-task path, to avoid whatever caused the null reference).
+**Next step once that's in hand**: decide with the user whether to build a
+Promotion Rate / Internal Mobility view on `ESC-PR`+`ESC-PRT`, and confirm
+the remaining 5 unconfirmed codes before including them in anything.
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
