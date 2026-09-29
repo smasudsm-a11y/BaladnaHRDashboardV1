@@ -5,14 +5,15 @@ import { kpiCard, chartCard, tableCard, barChart, filterSelect, legalEntityFilte
 // report -- see 29_promotion_history.sql), so no dataStatus dot.
 export const meta = { id: "promotions", label: "Promotions & Mobility", subtitle: "Promotion rate, promotion volume, and internal mobility from SAP employee-action history" };
 
-// SAP event-reason codes, user-confirmed 2026-09-29. ESC-SA/ESC-TLECHGSA are
-// still unconfirmed -- shown under their raw code rather than guessed.
+// SAP event-reason codes, user-confirmed 2026-09-29. ESC-TLECHGSA is still
+// unconfirmed -- shown under its raw code rather than guessed.
 const EVENT_LABELS = {
   "ESC-PR": "Promotion",
   "ESC-PRT": "Promotion due to Transfer",
   "ESC-SL": "Merit Increase",
   "ESC-JR": "Job Regrade",
   "ESC-BA": "Benefit Adjustment",
+  "ESC-SA": "Salary Adjustment",
 };
 const PROMOTION_CODES = ["ESC-PR", "ESC-PRT"];
 const PROMOTION_TYPES = PROMOTION_CODES.map((c) => EVENT_LABELS[c]);

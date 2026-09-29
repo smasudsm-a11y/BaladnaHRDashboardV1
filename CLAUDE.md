@@ -193,14 +193,16 @@ Excluding `1510` (Algeria, out of scope) leaves **1,661 rows**. Per code
 |---|---|---|---|---|---|
 | `ESC-BA` | Benefit Adjustment | 822 | 775 | 775 | 2020–2026 (518 in 2026) |
 | `ESC-PR` | Promotion | 691 | ~564 | 564 | 2019–2026 |
-| `ESC-SA` | *unconfirmed* | 66 | 65 | 65 | 2020–2025 (44 in 2024) |
+| `ESC-SA` | Salary Adjustment | 66 | 65 | 65 | 2020–2025 (44 in 2024) |
 | `ESC-SL` | Merit Increase | 61 | 59 | 59 | 2020–2025 |
 | `ESC-PRT` | Promotion due to Transfer | 11 | 10 | 10 | 2024 only |
 | `ESC-JR` | Job Regrade | 9 | 9 | 9 | 2025–2026 (36 more are Algeria) |
 | `ESC-TLECHGSA` | *unconfirmed* | 1 | 1 | 1 | 2026 |
 
 `ESC-SR`/`ESC-JRSA`/`ESC-JRBA` **don't occur in Baladna's slice at all**,
-so only `ESC-SA` and `ESC-TLECHGSA` still need confirming for this app.
+so only `ESC-SA` and `ESC-TLECHGSA` needed confirming for this app.
+`ESC-SA` = **Salary Adjustment** (user-confirmed 2026-09-29); only
+`ESC-TLECHGSA` (1 row) is still unconfirmed.
 Company split: nearly everything is `1500` (Food Industries); `1520`
 (Egypt) has only 33 BA + 2 PR, `1540` (E-Life) 49 BA + 4 PR + 2 SA, and
 `1530` has no rows. Distinct employees promoted (PR+PRT) per start year:
@@ -214,7 +216,7 @@ section + `employee_master` RLS widening), one row per event, **every**
 event code stored (not just PR/PRT), so Merit Increase/Job Regrade analysis
 can reuse it later without a reload. `event_reason` stays the raw SAP code;
 labels live in `promotions.js`'s `EVENT_LABELS`, and unconfirmed codes show
-as e.g. `"ESC-SA (unconfirmed)"`. `build_promotion_history.ps1` → 1,585
+as e.g. `"ESC-TLECHGSA (unconfirmed)"`. `build_promotion_history.ps1` → 1,585
 rows (0 unmatched employees). It collapses **76 same-day split records**:
 SAP writes some events twice, once zero-length (end = start) and once with
 the real end date. They're one event, so the later end date is kept.
@@ -226,10 +228,10 @@ year ÷ avg of active headcount at Jan 1 and Dec 31 (capped at
 `REFERENCE_TODAY` for the current year), from `isActiveAsOf`. Year filter
 defaults to the last complete year. Trend starts at 2022 (see above).
 Company-wide rate: 2022 2.7%, 2023 3.7%, 2024 9.2%, 2025 8.5%, 2026 YTD 7.7%.
-The 2022–23 jump is unexplained: it may be real, or incomplete early SAP
+The 2023–24 jump is unexplained: it may be real, or incomplete early SAP
 history. "Promotions by Job Level" uses the employee's **current** level,
-since the source has no at-the-time grade. `ESC-SA`/`ESC-TLECHGSA` are
-still unconfirmed.
+since the source has no at-the-time grade. `ESC-TLECHGSA` is still
+unconfirmed.
 
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
