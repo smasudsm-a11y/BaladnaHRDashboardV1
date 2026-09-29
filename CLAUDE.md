@@ -185,17 +185,53 @@ earlier guess if it surfaces anywhere.) The 5 rarer codes are still
 **unconfirmed** — `ESC-SA` alone is 4,218 rows group-wide, not
 negligible.
 
-**Left unfinished, paused for a context-window handoff, not a data
-blocker**: getting the actual per-code row/employee counts *within* the
-1,698-row Baladna-scoped slice specifically (group-wide counts are known;
-Baladna-specific ones aren't yet). The PowerShell attempt to compute this
-hit a scoping error (a `StreamReader` going null mid-loop when the command
-got moved to a background task after a 120s timeout) — not a data problem,
-just re-run it (ideally via the synchronous PowerShell tool, not Bash's
-background-task path, to avoid whatever caused the null reference).
-**Next step once that's in hand**: decide with the user whether to build a
-Promotion Rate / Internal Mobility view on `ESC-PR`+`ESC-PRT`, and confirm
-the remaining 5 unconfirmed codes before including them in anything.
+**Baladna-scoped per-code counts — done (2026-09-29, follow-up session)**.
+Excluding `1510` (Algeria, out of scope) leaves **1,661 rows**. Per code
+(rows / distinct employees / matched to `employee_master`, in-scope only):
+
+| Code | Meaning | Rows | Employees | Matched | Years |
+|---|---|---|---|---|---|
+| `ESC-BA` | Benefit Adjustment | 822 | 775 | 775 | 2020–2026 (518 in 2026) |
+| `ESC-PR` | Promotion | 691 | ~564 | 564 | 2019–2026 |
+| `ESC-SA` | Salary Adjustment | 66 | 65 | 65 | 2020–2025 (44 in 2024) |
+| `ESC-SL` | Merit Increase | 61 | 59 | 59 | 2020–2025 |
+| `ESC-PRT` | Promotion due to Transfer | 11 | 10 | 10 | 2024 only |
+| `ESC-JR` | Job Regrade | 9 | 9 | 9 | 2025–2026 (36 more are Algeria) |
+| `ESC-TLECHGSA` | *unconfirmed* | 1 | 1 | 1 | 2026 |
+
+`ESC-SR`/`ESC-JRSA`/`ESC-JRBA` **don't occur in Baladna's slice at all**,
+so only `ESC-SA` and `ESC-TLECHGSA` needed confirming for this app.
+`ESC-SA` = **Salary Adjustment** (user-confirmed 2026-09-29); only
+`ESC-TLECHGSA` (1 row) is still unconfirmed.
+Company split: nearly everything is `1500` (Food Industries); `1520`
+(Egypt) has only 33 BA + 2 PR, `1540` (E-Life) 49 BA + 4 PR + 2 SA, and
+`1530` has no rows. Distinct employees promoted (PR+PRT) per start year:
+2022: 53, 2023: 74, 2024: 181, 2025: 168, 2026 YTD: 152. Pre-2022 is
+sparse (2019: 1, 2021: 3), which suggests the history only really starts
+at SAP go-live, so a promotion-rate trend should begin at 2022. Row-level
+match rate is effectively 100%: only 1 PR employee fails to match.
+**Promotions & Mobility page — built (2026-09-29, user said go ahead)**.
+New table `promotion_history` (`29_promotion_history.sql`, new `promotions`
+section + `employee_master` RLS widening), one row per event, **every**
+event code stored (not just PR/PRT), so Merit Increase/Job Regrade analysis
+can reuse it later without a reload. `event_reason` stays the raw SAP code;
+labels live in `promotions.js`'s `EVENT_LABELS`, and unconfirmed codes show
+as e.g. `"ESC-TLECHGSA (unconfirmed)"`. `build_promotion_history.ps1` → 1,585
+rows (0 unmatched employees). It collapses **76 same-day split records**:
+SAP writes some events twice, once zero-length (end = start) and once with
+the real end date. They're one event, so the later end date is kept.
+`build_promotion_history_workbook.ps1` → `22_Promotion_History.xlsx`, for
+the new "22 — Promotion History" Data Refresh card (delete+insert, since
+each SAP pull is a full history extract). Page (`promotions.js`, nav:
+Performance & Growth): Promotion Rate = distinct employees promoted in the
+year ÷ avg of active headcount at Jan 1 and Dec 31 (capped at
+`REFERENCE_TODAY` for the current year), from `isActiveAsOf`. Year filter
+defaults to the last complete year. Trend starts at 2022 (see above).
+Company-wide rate: 2022 2.7%, 2023 3.7%, 2024 9.2%, 2025 8.5%, 2026 YTD 7.7%.
+The 2023–24 jump is unexplained: it may be real, or incomplete early SAP
+history. "Promotions by Job Level" uses the employee's **current** level,
+since the source has no at-the-time grade. `ESC-TLECHGSA` is still
+unconfirmed.
 
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
@@ -1118,6 +1154,11 @@ sync" feature notes for 27's reasoning.)
     the `division_allowed()` join, same pattern as `total_rewards`. See
     the "Employee Benefits" section above for the join-key story and why
     this table exists.
+29. `29_promotion_history.sql` — new `promotion_history` table (real SAP
+    Merit Increase & Promotions events, Baladna Qatar + Egypt only) for the
+    new `promotions` section, plus `employee_master`'s sectioned-read
+    widening to include `promotions`. See the "Merit Increase & Promotions"
+    section above.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

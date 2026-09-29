@@ -391,6 +391,21 @@ const UPLOAD_UNITS = [
       },
     }],
   },
+  {
+    id: "promotion_history", fileLabel: "22 — Promotion History",
+    sheets: [{
+      // Real SAP employee-action events (see 29_promotion_history.sql).
+      // Delete+insert, not upserted — the SAP report is a complete history
+      // extract every time, and events have no natural unique key (the table
+      // uses a generated id).
+      sheetName: "Promotion History Data", table: "promotion_history",
+      dateFields: ["event_date", "end_date"],
+      fields: {
+        "Employee ID": "employee_id", "Event Date": "event_date", "End Date": "end_date",
+        "Event Reason": "event_reason", "Company Code": "company_code",
+      },
+    }],
+  },
 ];
 
 function toIsoDate(v) {
