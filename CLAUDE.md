@@ -232,6 +232,18 @@ The 2023–24 jump is unexplained: it may be real, or incomplete early SAP
 history. "Promotions by Job Level" uses the employee's **current** level,
 since the source has no at-the-time grade. `ESC-TLECHGSA` is still
 unconfirmed.
+**Pay Changes section — added to the same page (2026-09-29)**. The user
+chose all four pay-change codes (Merit Increase, Salary Adjustment,
+Benefit Adjustment, Job Regrade), not merit alone, because `ESC-SL` is
+only 3–6 events a year since 2024. They also chose a section on Promotions
+& Mobility rather than a new page, so no migration or access change was
+needed. It has a "Pay Change Type" filter that narrows only this section.
+It shows **counts and rates only**: the SAP report has no amounts, so
+there's no increase % or cost. It replaced the old "All Career Events by
+Type" chart. `ESC-TLECHGSA` is excluded as unknown. Pay Change Rate uses
+the same denominator as Promotion Rate. Expected company-wide figures
+(distinct employees / rate): 2024 91 / 4.6%, 2025 123 / 6.2%, 2026 YTD
+498 / 25.3%, the last driven by 362 Benefit Adjustments in Jan 2026.
 
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
