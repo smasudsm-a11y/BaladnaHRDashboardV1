@@ -112,6 +112,49 @@ module. No dashboard page reads this table yet — this pass was scoped to
 the join + pipeline only, per explicit user direction; the actual Total
 Compensation Statement analysis is a separate, later piece of work.
 
+**Paused, 2026-09-28**: user clarified "Test3" is literally a *test* report
+someone built in SAP for testing purposes — not confirmed as a finalized
+production report. The employee IDs it joins to are real (3,148/3,148
+matched), but that doesn't guarantee the CTC dollar values themselves are
+final/approved — a test report can easily have been pulled while field
+mappings were still being validated. `employee_benefits` stays live in
+Supabase (already migrated + uploaded), but building the actual Total
+Compensation Statement page is on hold until Total Rewards/whoever owns
+SAP reporting confirms whether these fields reflect real, current
+entitlements.
+
+### Recruitment's Time to Hire — investigated, deliberately NOT fixed (2026-09-29)
+
+`Position_Data-Ever-Component1 (1).xlsx`'s `Requisition Date`/
+`Proposed Hiring Date` looked like a promising real replacement for
+Recruitment's fully-synthetic Time to Hire KPI (same file already used for
+`budgeted_positions`/`critical_positions`). Joining by `Position No.` to
+`employee_master.position_id` initially looked broken: of 2,100 employees
+matched to a `Proposed Hiring Date`, 1,981 (94%) showed `hire_date`
+*before* that date — nonsensical for an elapsed-time calculation. ("Ever"
+in the filename is an HRIS team member's name, not "historical export" —
+ruled out as the cause; only 60 of 2,544 position numbers even have more
+than one row, so it isn't a multi-row-history join problem either.)
+
+Root cause, found by comparing actual side-by-side examples: Position Data
+is a **current snapshot that gets overwritten by later administrative
+events** (budget renewals, reclassifications) unrelated to the original
+hire. `effectiveStartDate` matches `hire_date` exactly only when the
+position hasn't been touched since that person's own hire; otherwise the
+whole row — Requisition Date, Proposed Hiring Date, effectiveStartDate —
+reflects whatever the *most recent* administrative review touched, even
+though the same person has been in the seat for years. Restricting to the
+22 employees (of 3,148) whose `hire_date` falls within 7 days of their
+position's `effectiveStartDate` — the only cases where the record is
+still genuinely fresh from their own hire — the numbers become sensible
+(avg 53 days, max 254, only 2 of 22 still negative). But N=22 company-wide
+is too thin to ship as a real metric. **User's call: leave Time to Hire
+synthetic rather than replace it with something technically real but
+statistically shaky.** If this is ever revisited, the fix isn't a better
+join — it's capturing this cleanly going forward (per new hire, at time of
+hire) rather than trying to reconstruct history Position Data doesn't
+preserve.
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
