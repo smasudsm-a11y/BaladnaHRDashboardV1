@@ -94,6 +94,7 @@ export function render({ db, contentEl, filtersEl }) {
       sub: "Manager vs. non-manager, by tenure milestone",
       columns: [{ key: "band", label: "Tenure Band" }, { key: "mgr", label: "Manager/Supervisor" }, { key: "nonmgr", label: "Individual Contributor" }],
       rows: [{ band: "0–6 months", mgr: fmt(r6m), nonmgr: fmt(r6n) }, { band: "6–12 months", mgr: fmt(r12m), nonmgr: fmt(r12n) }],
+      collapsed: false, showCount: false, // a summary matrix, not a record list
     });
   }
 

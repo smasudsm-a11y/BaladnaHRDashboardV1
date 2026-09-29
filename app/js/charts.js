@@ -339,11 +339,38 @@ export function chartCard(container, { title, sub, size = "grid-2", height = "",
   return canvas;
 }
 
-export function tableCard(container, { title, sub, columns, rows }) {
+// Record-level tables start collapsed behind a +/− header toggle, so the
+// default view stays at the summary level for management and the detail is
+// one click away. Pass `collapsed: false` for a small table that IS the
+// summary (e.g. Executive's initiatives tracker). The table is still built
+// into the DOM while collapsed (just hidden), so PPT export and Zee, which
+// both read tables straight from the DOM, see it either way.
+// `showCount: false` drops the "N records" suffix for a table whose rows
+// aren't records (e.g. New Hires' 2-row Retention 4-Box).
+export function tableCard(container, { title, sub, columns, rows, collapsed = true, showCount = true }) {
   const wrap = document.createElement("div");
-  wrap.className = "card";
-  wrap.innerHTML = `<h3>${title}</h3>${sub ? `<div class="card-sub">${sub}</div>` : ""}`;
-  wrap.appendChild(buildTable(columns, rows));
+  wrap.className = "card table-card";
+  const count = showCount ? `${rows.length.toLocaleString("en-US")} ${rows.length === 1 ? "record" : "records"}` : "";
+  const subText = [sub, count].filter(Boolean).join(" · ");
+  wrap.innerHTML = `
+    <button type="button" class="table-card-head" aria-expanded="${!collapsed}">
+      <span class="table-card-icon" aria-hidden="true">${collapsed ? "+" : "−"}</span>
+      <span class="table-card-titles">
+        <h3>${title}</h3>
+        ${subText ? `<span class="card-sub">${subText}</span>` : ""}
+      </span>
+    </button>
+    <div class="table-card-body"${collapsed ? " hidden" : ""}></div>
+  `;
+  const head = wrap.querySelector(".table-card-head");
+  const body = wrap.querySelector(".table-card-body");
+  body.appendChild(buildTable(columns, rows));
+  head.addEventListener("click", () => {
+    const open = body.hidden;
+    body.hidden = !open;
+    head.setAttribute("aria-expanded", String(open));
+    head.querySelector(".table-card-icon").textContent = open ? "−" : "+";
+  });
   container.appendChild(wrap);
   return wrap;
 }

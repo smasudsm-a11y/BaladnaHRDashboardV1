@@ -172,6 +172,7 @@ export function render({ db, contentEl, filtersEl }) {
       sub: `${completedCount} completed · ${inProgressCount} in progress · ${overdueCount} overdue`,
       columns: [{ key: "name", label: "Initiative" }, { key: "status", label: "Status" }],
       rows: initiatives,
+      collapsed: false, // a short tracker that is itself the summary
     });
   }
 
