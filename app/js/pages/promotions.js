@@ -1,9 +1,9 @@
 import { sortedUnique, fmtInt, fmtPct, fmtDec, legalEntityAllowed, isActiveAsOf, daysBetween, REFERENCE_TODAY, JOB_LEVEL_ORDER } from "../data.js";
-import { kpiCard, chartCard, tableCard, barChart, filterSelect, legalEntityFilter } from "../charts.js";
+import { kpiCard, chartCard, tableCard, barChart, filterSelect, legalEntityFilter, sectionTitle } from "../charts.js";
 
 // Real SAP data (promotion_history, from the Merit Increase & Promotions
 // report -- see 29_promotion_history.sql), so no dataStatus dot.
-export const meta = { id: "promotions", label: "Promotions & Mobility", subtitle: "Promotion rate, promotion volume, and internal mobility from SAP employee-action history" };
+export const meta = { id: "promotions", label: "Promotions & Mobility", subtitle: "Promotions, internal mobility, and pay changes from SAP employee-action history" };
 
 // SAP event-reason codes, user-confirmed 2026-09-29. ESC-TLECHGSA is still
 // unconfirmed -- shown under its raw code rather than guessed.
@@ -17,6 +17,12 @@ const EVENT_LABELS = {
 };
 const PROMOTION_CODES = ["ESC-PR", "ESC-PRT"];
 const PROMOTION_TYPES = PROMOTION_CODES.map((c) => EVENT_LABELS[c]);
+// "Pay Changes" section (user's scope call, 2026-09-29: all four, not merit
+// alone -- Merit Increase is only single digits a year since 2024). The SAP
+// report records THAT a change happened, never the amount, so this section
+// is counts and rates only -- no increase % or cost.
+const PAY_CODES = ["ESC-SL", "ESC-SA", "ESC-BA", "ESC-JR"];
+const PAY_TYPES = PAY_CODES.map((c) => EVENT_LABELS[c]);
 
 // Pre-2022 history is near-empty (4 promotions across 2019-2021) -- the SAP
 // record effectively starts at go-live, so a rate for those years would read
@@ -34,6 +40,7 @@ export function render({ db, contentEl, filtersEl }) {
       ...r,
       eventType: labelFor(r.eventReason),
       isPromotion: PROMOTION_CODES.includes(r.eventReason),
+      isPayChange: PAY_CODES.includes(r.eventReason),
       year: r.eventDate.slice(0, 4),
       month: MONTH_NAMES[Number(r.eventDate.slice(5, 7)) - 1],
       employeeName: e?.employeeName || r.employeeId,
@@ -55,7 +62,7 @@ export function render({ db, contentEl, filtersEl }) {
   // Default to the latest complete year -- the current year is partial, so
   // its rate isn't comparable with a full year's.
   let year = yearOrder.includes(String(refYear - 1)) ? String(refYear - 1) : yearOrder[yearOrder.length - 1];
-  let division = "All", dept = "All";
+  let division = "All", dept = "All", payType = "All";
 
   const divisions = ["All", ...sortedUnique(db.employeeMaster, (e) => e.division)];
   const depts = ["All", ...sortedUnique(db.employeeMaster, (e) => e.department)];
@@ -64,6 +71,8 @@ export function render({ db, contentEl, filtersEl }) {
   filterSelect(filtersEl, { label: "Year", options: yearOrder, value: year, onChange: (v) => { year = v; draw(); } });
   filterSelect(filtersEl, { label: "Division", options: divisions, value: division, onChange: (v) => { division = v; draw(); } });
   filterSelect(filtersEl, { label: "Department", options: depts, value: dept, onChange: (v) => { dept = v; draw(); } });
+  // Only narrows the Pay Changes section below, not the promotion charts.
+  filterSelect(filtersEl, { label: "Pay Change Type", options: ["All", ...PAY_TYPES], value: payType, onChange: (v) => { payType = v; draw(); } });
 
   // Headcount denominator: average of active headcount at the start and end
   // of the year (end capped at REFERENCE_TODAY for the current, partial
@@ -90,7 +99,6 @@ export function render({ db, contentEl, filtersEl }) {
     const scopedEvents = events.filter(inScope);
     const allYearPromos = scopedEvents.filter((r) => r.isPromotion && Number(r.year) >= TREND_START_YEAR);
     const promos = allYearPromos.filter((r) => r.year === year);
-    const yearEvents = scopedEvents.filter((r) => r.year === year);
     const isPartial = Number(year) >= refYear;
 
     const promotedIds = new Set(promos.map((r) => r.employeeId));
@@ -151,12 +159,6 @@ export function render({ db, contentEl, filtersEl }) {
     const c7 = chartCard(grid, { title: "Promotions by Month", sub: `${year} — when promotion cycles land`, drilldown: { records: promos, matchField: "month", db } });
     barChart(c7, { labels: MONTH_NAMES, datasets: [{ label: "Promotions", data: MONTH_NAMES.map((m) => promos.filter((r) => r.month === m).length) }], showLegend: false });
 
-    const typeCounts = sortedUnique(yearEvents, (r) => r.eventType)
-      .map((t) => [t, yearEvents.filter((r) => r.eventType === t).length])
-      .sort((a, b) => b[1] - a[1]);
-    const c8 = chartCard(grid, { title: "All Career Events by Type", sub: `${year} — every SAP event reason, not just promotions`, drilldown: { records: yearEvents, matchField: "eventType", db } });
-    barChart(c8, { labels: typeCounts.map((t) => t[0]), datasets: [{ label: "Events", data: typeCounts.map((t) => t[1]) }], showLegend: false, horizontal: true });
-
     tableCard(contentEl, {
       title: "Promotion Records", sub: year,
       columns: [
@@ -165,6 +167,72 @@ export function render({ db, contentEl, filtersEl }) {
         { key: "eventDate", label: "Promotion Date" }, { key: "eventType", label: "Type" },
       ],
       rows: [...promos].sort((a, b) => b.eventDate.localeCompare(a.eventDate)),
+    });
+
+    drawPayChanges({ scopedEvents, employees, isPartial });
+  }
+
+  function drawPayChanges({ scopedEvents, employees, isPartial }) {
+    sectionTitle(contentEl, "Pay Changes");
+
+    const typeAllowed = (r) => payType === "All" || r.eventType === payType;
+    const allYearPay = scopedEvents.filter((r) => r.isPayChange && typeAllowed(r) && Number(r.year) >= TREND_START_YEAR);
+    const pay = allYearPay.filter((r) => r.year === year);
+    const shownTypes = payType === "All" ? PAY_TYPES : [payType];
+
+    const affectedIds = new Set(pay.map((r) => r.employeeId));
+    const hc = avgHeadcount(year, employees);
+    const payRate = hc ? (affectedIds.size / hc) * 100 : 0;
+    const meritCount = pay.filter((r) => r.eventReason === "ESC-SL").length;
+
+    const kpiRow = document.createElement("div");
+    kpiRow.className = "kpi-row";
+    contentEl.appendChild(kpiRow);
+    kpiCard(kpiRow, { label: "Pay Changes", value: fmtInt(pay.length), note: `${payType === "All" ? "all types" : payType} · ${isPartial ? `${year} YTD` : year}` });
+    kpiCard(kpiRow, { label: "Employees Affected", value: fmtInt(affectedIds.size), note: "distinct employees" });
+    kpiCard(kpiRow, { label: "Pay Change Rate", value: fmtPct(payRate), note: `of avg headcount ${fmtInt(hc)}${isPartial ? " (YTD)" : ""}` });
+    kpiCard(kpiRow, { label: "Merit Increases", value: fmtInt(meritCount), note: payType === "All" || payType === "Merit Increase" ? "SAP reason ESC-SL" : "excluded by Pay Change Type filter" });
+
+    const grid = document.createElement("div");
+    grid.className = "grid-2";
+    contentEl.appendChild(grid);
+
+    const p1 = chartCard(grid, { title: "Pay Changes by Year", sub: `Counts only; the SAP report has no amounts${yearOrder.includes(String(refYear)) ? ` · ${refYear} is year-to-date` : ""}`, drilldown: { records: allYearPay, matchField: "year", datasetField: "eventType", db } });
+    barChart(p1, {
+      labels: yearOrder,
+      datasets: shownTypes.map((t) => ({ label: t, data: yearOrder.map((y) => allYearPay.filter((r) => r.year === y && r.eventType === t).length), stacked: true })),
+      stacked: true,
+    });
+
+    const p2 = chartCard(grid, { title: "Pay Changes by Month", sub: `${year} — when pay cycles land`, drilldown: { records: pay, matchField: "month", datasetField: "eventType", db } });
+    barChart(p2, {
+      labels: MONTH_NAMES,
+      datasets: shownTypes.map((t) => ({ label: t, data: MONTH_NAMES.map((m) => pay.filter((r) => r.month === m && r.eventType === t).length), stacked: true })),
+      stacked: true,
+    });
+
+    // Every division regardless of the Division filter, same as the
+    // promotion-rate-by-division chart above.
+    const divScope = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && (dept === "All" || e.department === dept));
+    const divScopePay = events.filter((r) => r.isPayChange && typeAllowed(r) && legalEntityAllowed(db, r.legalEntity) && (dept === "All" || r.department === dept));
+    const divOrder = sortedUnique(divScope, (e) => e.division);
+    const p3 = chartCard(grid, { title: "Pay Change Rate by Division", sub: `${year}, % of average headcount`, drilldown: { records: divScopePay.filter((r) => r.year === year), matchField: "division", db } });
+    barChart(p3, { labels: divOrder, datasets: [{ label: "Pay Change Rate %", data: divOrder.map((d) => Number(rate(divScopePay.filter((r) => r.division === d), year, divScope.filter((e) => e.division === d)).toFixed(1))) }], showLegend: false, horizontal: true });
+
+    const deptCounts = sortedUnique(pay, (r) => r.department)
+      .map((d) => [d, pay.filter((r) => r.department === d).length])
+      .sort((a, b) => b[1] - a[1]);
+    const p4 = chartCard(grid, { title: "Pay Changes by Department", sub: year, drilldown: { records: pay, matchField: "department", db } });
+    barChart(p4, { labels: deptCounts.map((d) => d[0]), datasets: [{ label: "Pay Changes", data: deptCounts.map((d) => d[1]) }], showLegend: false, horizontal: true });
+
+    tableCard(contentEl, {
+      title: "Pay Change Records", sub: `${year} · ${payType === "All" ? "all types" : payType}`,
+      columns: [
+        { key: "employeeName", label: "Employee" }, { key: "division", label: "Division" },
+        { key: "department", label: "Department" }, { key: "jobLevel", label: "Current Job Level" },
+        { key: "eventDate", label: "Effective Date" }, { key: "eventType", label: "Type" },
+      ],
+      rows: [...pay].sort((a, b) => b.eventDate.localeCompare(a.eventDate)),
     });
   }
 
