@@ -267,6 +267,13 @@ no total_rewards access, hence `30_newhires_total_rewards_access.sql`.
 Expected company-wide: 1,966 evaluated, avg compa-ratio 0.93, avg range
 penetration 27.7%, 137 under / 1,791 within / 38 over. Gender pay gap and
 salary histograms still use basic (not band comparisons, so unchanged).
+**E-Life is ~57% underpaid, and that's real, not a band mix-up** (checked
+2026-10-01). `salary_structure` has no company dimension, but Position
+Data shows E-Life (67 Qatar positions) on the **same** bands as Baladna
+Food Industries: 20 of its 22 (grade, job family) combos are identical,
+0 differ, and 2 exist only at E-Life. So E-Life pay genuinely sits below
+the shared group ranges. This is a finding for Total Rewards, not a data
+fix.
 
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
