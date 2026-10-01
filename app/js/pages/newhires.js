@@ -1,4 +1,4 @@
-import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS, legalEntityAllowed } from "../data.js";
+import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, bandComparablePay, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS, legalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "newhires", label: "New Hires & Onboarding", subtitle: "Who joined, and how they're distributed in their first year" };
@@ -34,15 +34,21 @@ export function render({ db, contentEl, filtersEl }) {
     const retained6 = eligible(starters, 6);
     const retained12 = eligible(starters, 12);
 
-    // Starting salary vs. grade midpoint at hire (not current salary — that's
-    // what compensation.js's Compa-Ratio already covers). Only counts starters
-    // with a base_salary row on/near their hire date and a matching grade in
-    // salary_structure; starters missing either are excluded, not counted as "below."
+    // New hires' pay vs. grade midpoint. Originally meant as starting salary,
+    // but the real SAP pay data is a single current snapshot per employee (no
+    // history), so for recent hires this is effectively their pay at hire.
+    // Only counts starters with a matching salary_structure band and a
+    // total_rewards row; starters missing either are excluded, not counted
+    // as "below."
     const withHireSalary = starters
       .map((e) => {
         const sal = db.earliestBaseSalary.get(e.employeeId);
         const struct = sal ? salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency) : null;
-        return struct ? sal.baseSalary > struct.salaryMidpoint : null;
+        // Total monthly cash, not basic -- the SAP bands are defined on
+        // total cash (see bandComparablePay). The SAP data is a current
+        // snapshot, so this is current pay, not starting pay.
+        const pay = struct ? bandComparablePay(db, e.employeeId) : null;
+        return pay !== null ? pay > struct.salaryMidpoint : null;
       })
       .filter((v) => v !== null);
     const aboveMid = withHireSalary.filter(Boolean).length;
@@ -64,7 +70,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "% Female New Starters", value: starters.length ? fmtPct((female / starters.length) * 100) : "—" });
     kpiCard(kpiRow, { label: "Retention @ 6mo", value: retained6 ? fmtPct(retained6.pct) : "n/a", note: retained6 ? `of ${retained6.n} eligible starters` : "no starters old enough yet" });
     kpiCard(kpiRow, { label: "Retention @ 12mo", value: retained12 ? fmtPct(retained12.pct) : "n/a", note: retained12 ? `of ${retained12.n} eligible starters` : "no starters old enough yet" });
-    kpiCard(kpiRow, { label: "Hires Above Mid %", value: withHireSalary.length ? fmtPct((aboveMid / withHireSalary.length) * 100) : "n/a", note: withHireSalary.length ? `${aboveMid} of ${withHireSalary.length} started above grade midpoint` : "no starting-salary data available" });
+    kpiCard(kpiRow, { label: "Hires Above Mid %", value: withHireSalary.length ? fmtPct((aboveMid / withHireSalary.length) * 100) : "n/a", note: withHireSalary.length ? `${aboveMid} of ${withHireSalary.length} paid above grade midpoint (total cash)` : "no salary-band data available" });
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
