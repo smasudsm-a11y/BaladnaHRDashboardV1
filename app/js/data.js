@@ -194,7 +194,18 @@ export function salaryStructureLookup(db, grade, jobFamily, currency) {
 // toQarEquivalent only when summing across employees. Returns null (excluded
 // from band analysis, never silently swapped for basic) when the employee
 // has no total_rewards row.
+//
+// Qatari nationals are excluded (returns null): the SAP salary bands are
+// Baladna's EXPAT scale, and Qatari nationals are paid on a separate scale
+// that isn't in the data (user-confirmed 2026-10-01; 5 currently employed).
+// Comparing them against expat bands made them look far above range, e.g.
+// two Qatari G14 hires on 26,000 against an 11,800 mid showed as +120%.
+// Keyed on nationality, same rule as diversity.js's Local count, so future
+// Qatari hires are excluded automatically.
+export const BAND_EXCLUDED_NATIONALITIES = ["Qatar"];
 export function bandComparablePay(db, employeeId) {
+  const e = db.employeeIndex?.get(employeeId);
+  if (e && BAND_EXCLUDED_NATIONALITIES.includes(e.nationality)) return null;
   const tr = db.latestTotalRewards.get(employeeId);
   const pay = tr ? Number(tr.totalCashCompensation) : NaN;
   return pay > 0 ? pay : null;

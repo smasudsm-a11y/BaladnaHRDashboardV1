@@ -110,7 +110,7 @@ export function render({ db, contentEl, filtersEl }) {
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
-    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length), note: "Staff and Labor only; interns and consultants excluded" });
+    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length), note: "Staff and Labor on the expat scale; interns, consultants and Qatari nationals excluded" });
     kpiCard(kpiRow, { label: "Underpaid Employees", value: fmtInt(underpaid.length), note: `${fmtPct(rows.length ? (underpaid.length / rows.length) * 100 : 0)} of evaluated` });
     kpiCard(kpiRow, { label: "Difference from Min Salary", value: fmtMoney(underpaidTotal), note: "total shortfall vs. grade minimum" });
     kpiCard(kpiRow, { label: "Overpaid Employees", value: fmtInt(overpaid.length), note: `${fmtPct(rows.length ? (overpaid.length / rows.length) * 100 : 0)} of evaluated` });

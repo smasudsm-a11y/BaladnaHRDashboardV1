@@ -310,6 +310,23 @@ hires and exits after the extract date aren't reflected until the next
 refresh. New Hires "Now" as of 2026-10-01: 102 on probation, 10 ending
 ≤30 days, 55 ≤90 days. 2025 12-mo retention 79.4% (of 218).
 
+### Qatari nationals excluded from salary-band analysis (2026-10-01)
+
+User-confirmed: **the SAP salary bands are Baladna's expat scale**, and
+Qatari nationals are paid on a separate scale that isn't in the data. (This
+answers the open "50219305 / expat scale" question in the salary-ranges
+notes: it's the bands in general that are expat.) `bandComparablePay()`
+in `data.js` returns null for `BAND_EXCLUDED_NATIONALITIES` (`["Qatar"]`,
+the same nationality rule diversity.js uses for Locals), so Qatari
+nationals drop out of every band comparison: Compensation compa-ratio,
+penetration, quartiles and pay gap; Underpaid & Overpaid; and New Hires'
+Paid Above Midpoint. They stay in non-band figures (avg total cash, cost,
+headcount). 5 currently employed, all G14/G17 Staff, all of whom showed
+as Overpaid at 1.88-2.20× midpoint. Impact: overpaid 34 → 29 (evaluated
+1,958 → 1,953), pay gap index 105.5 → 101.4, 2026 Baladna Qatar joiners
+above midpoint 17 → 15. If Total Rewards supplies the Qatari scale, load
+it as its own bands rather than removing this exclusion blindly.
+
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
 `toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**

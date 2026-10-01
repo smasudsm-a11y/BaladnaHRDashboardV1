@@ -122,8 +122,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
     kpiCard(kpiRow, { label: "Avg Total Cash Compensation", value: fmtMoney(avgCTC), note: `${fmtInt(rows.length)} active employees` });
-    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. grade midpoint (1.00 = at mid)" });
-    kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration), note: "total cash within grade range" });
+    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. grade midpoint (1.00 = at mid); excl. Qatari nationals" });
+    kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration), note: "total cash within expat grade range" });
     kpiCard(kpiRow, {
       label: "Gender Pay Gap Index", value: gap.index === null ? "n/a" : fmtDec(gap.index, 1),
       note: gap.index === null
