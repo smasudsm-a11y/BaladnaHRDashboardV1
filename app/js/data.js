@@ -41,7 +41,7 @@ const SECTION_TABLES = {
   headcount: ["employee_master", "org_hierarchy"],
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "total_rewards", "salary_structure"],
-  diversity: ["diversity", "recruitment", "attrition"],
+  diversity: ["diversity", "employee_master"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure", "employee_benefits"],
   attrition: ["employee_master", "attrition", "performance", "kpi_targets"],
   leave: ["leave", "absenteeism", "employee_master", "base_salary", "kpi_targets"],

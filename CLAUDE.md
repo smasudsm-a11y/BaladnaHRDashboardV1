@@ -353,6 +353,27 @@ official pay-scale matrix instead of deriving it from positions.
 `build_workbooks.ps1` now writes to `sap-migration/workbooks/` (it pointed
 at an old temp folder).
 
+### Diversity & Inclusion — reworked for real data (2026-10-01)
+
+Fixed in `diversity.js`: (1) the `diversity` table holds every employee
+ever loaded (3,148, incl. 1,181 leavers), so all KPIs/charts now use only
+currently employed people (`isCurrentlyEmployed`, joined via
+employee_master); before, Female Ratio read 4.4%, and it's really 2.8%.
+(2) Women in Leadership read `leadership_status`, which is empty for
+everyone, and showed 0 of 0. Leaders are now `management_level` in
+`LEADERSHIP_LEVELS`, the same rule as Executive. (3) Workforce Flow by
+Gender took hires from the still-synthetic `recruitment` table; it now
+uses real employee_master hire/termination dates over the last 12 months,
+respects Legal Entity + Grade, and has a drilldown. (4) Age bands are in
+age order. (5) `diversity` was never allowed to read employee_master, so
+a Diversity-only user saw an empty page. `33_diversity_employee_master_access.sql`
+adds it (and drops the removed `enps`/`headcount-forecast` from that list).
+`SECTION_TABLES.diversity` is now `["diversity","employee_master"]` (no
+longer recruitment/attrition). The page's "partial" nav dot is removed:
+it's all real data now. Expected (all entities, as of 2026-10-01): 1,967
+current, 2.8% female (55), women in leadership 8.7% (13 of 150), 38
+nationalities, localization 0.25% (5).
+
 ### Official pay scales replace derived Qatar ranges (2026-10-01)
 
 Total Rewards supplied Baladna Qatar's **official Expat scale** (G2-G7,
@@ -1377,6 +1398,9 @@ sync" feature notes for 27's reasoning.)
 32. `32_total_rewards_social_allowance.sql` — adds
     `total_rewards.social_allowance` (Qatari social allowance, excluded
     from National-scale band comparisons). Loaded by the same "07" upload.
+33. `33_diversity_employee_master_access.sql` — adds `diversity` to
+    `employee_master`'s sectioned-read list (and drops the removed
+    `enps`/`headcount-forecast`). See "Diversity & Inclusion — reworked".
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 
