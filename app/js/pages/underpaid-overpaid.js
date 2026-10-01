@@ -191,7 +191,9 @@ export function render({ db, contentEl, filtersEl }) {
     }));
     const cPositioningLe = chartCard(buGrid, {
       title: "Salary Positioning by Legal Entity", sub: "% within range vs. underpaid vs. overpaid",
-      drilldown: { records: levelFiltered, matchField: "legalEntity", db },
+      // datasetField: clicking the Underpaid segment must list only that
+      // entity's underpaid people, not everyone in the entity.
+      drilldown: { records: levelFiltered, matchField: "legalEntity", datasetField: "category", db },
     });
     barChart(cPositioningLe, {
       labels: leOrder,

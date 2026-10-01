@@ -57,7 +57,7 @@ export function render({ db, contentEl, filtersEl }) {
 
     const gradeOrder = sortGrades(sortedUnique(rows, (t) => t.jobGrade));
     const byGradeStatus = STATUS_ORDER.map((s) => gradeOrder.map((g) => rows.filter((t) => t.jobGrade === g && t.completionStatus === s).length));
-    const c2 = chartCard(grid, { title: "Total NHP by Grade and Status", drilldown: { records: rows, matchField: "jobGrade", db } });
+    const c2 = chartCard(grid, { title: "Total NHP by Grade and Status", drilldown: { records: rows, matchField: "jobGrade", datasetField: "completionStatus", db } });
     barChart(c2, { labels: gradeOrder, datasets: STATUS_ORDER.map((s, i) => ({ label: s, data: byGradeStatus[i], stacked: true })), stacked: true });
 
     const deptOrder = sortedUnique(rows, (t) => t.department).sort();
@@ -65,7 +65,7 @@ export function render({ db, contentEl, filtersEl }) {
     const c3 = chartCard(grid, {
       title: "Total NHP Status by Department",
       drilldown: {
-        records: rows, matchField: "department", db,
+        records: rows, matchField: "department", datasetField: "completionStatus", db,
         columns: [
           { key: "employeeId", label: "Employee ID" }, { key: "employeeName", label: "Name" },
           { key: "department", label: "Department" }, { key: "completionStatus", label: "Status" }, { key: "completionDate", label: "Completion Date" },
