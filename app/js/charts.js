@@ -364,7 +364,7 @@ export function chartCard(container, { title, sub, size = "grid-2", height = "",
 // Record-level tables start collapsed behind a +/− header toggle, so the
 // default view stays at the summary level for management and the detail is
 // one click away. Pass `collapsed: false` for a small table that IS the
-// summary (e.g. Executive's initiatives tracker). The table is still built
+// summary (e.g. New Hires' retention-by-role table). The table is still built
 // into the DOM while collapsed (just hidden), so PPT export and Zee, which
 // both read tables straight from the DOM, see it either way.
 // `showCount: false` drops the "N records" suffix for a table whose rows

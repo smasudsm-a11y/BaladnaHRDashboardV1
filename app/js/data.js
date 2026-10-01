@@ -30,7 +30,6 @@ const TABLES = {
   exitSurveys: "exit_surveys",
   stageGateScores: "stage_gate_scores",
   headcountForecast: "headcount_forecast",
-  initiatives: "initiatives",
   employeeBenefits: "employee_benefits",
   promotionHistory: "promotion_history",
 };
@@ -41,7 +40,7 @@ const TABLES = {
 // user has no section access to — RLS would return them empty anyway, but there's
 // no reason to pay for the round trip.
 const SECTION_TABLES = {
-  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets", "critical_positions", "successors", "stage_gate_scores", "initiatives"],
+  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets", "critical_positions", "successors", "stage_gate_scores"],
   headcount: ["employee_master", "org_hierarchy"],
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "total_rewards", "salary_structure"],

@@ -1,5 +1,5 @@
 import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
-import { kpiCard, chartCard, lineChart, barChart, doughnutChart, tableCard, noteBanner, legalEntityFilter } from "../charts.js";
+import { kpiCard, chartCard, lineChart, barChart, doughnutChart, noteBanner, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- this page rolls up attrition/leave/base_salary
 // (real, from the SAP batch) alongside absenteeism (no source),
@@ -160,20 +160,9 @@ export function render({ db, contentEl, filtersEl }) {
     const ltLabels = Array.from(leaveByType.keys());
     const c6 = chartCard(grid3, { title: "Leave Days Taken (TTM)", sub: "Approved leave, by type", drilldown: { records: leaveTTM, matchField: "leaveType", db } });
     barChart(c6, { labels: ltLabels, datasets: [{ label: "Days", data: ltLabels.map((t) => Math.round(leaveByType.get(t))) }], showLegend: false });
-
-    // Initiatives tracker (Phase L rollup) — the one genuinely new table this
-    // phase adds, no dependencies on any other module.
-    const initiatives = db.initiatives.slice().sort((a, b) => a.id - b.id);
-    const completedCount = initiatives.filter((i) => i.status === "Completed").length;
-    const inProgressCount = initiatives.filter((i) => i.status === "In Progress").length;
-    const overdueCount = initiatives.filter((i) => i.status === "Overdue").length;
-    tableCard(contentEl, {
-      title: "HR Initiatives",
-      sub: `${completedCount} completed · ${inProgressCount} in progress · ${overdueCount} overdue`,
-      columns: [{ key: "name", label: "Initiative" }, { key: "status", label: "Status" }],
-      rows: initiatives,
-      collapsed: false, // a short tracker that is itself the summary
-    });
+    // The Phase L "HR Initiatives" tracker table was removed 2026-10-01 at
+    // the user's request (not relevant to Baladna). The `initiatives` table
+    // still exists in Supabase but nothing reads or loads it.
   }
 
   draw();

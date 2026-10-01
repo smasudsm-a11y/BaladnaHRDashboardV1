@@ -365,19 +365,6 @@ const UPLOAD_UNITS = [
     }],
   },
   {
-    id: "initiatives", fileLabel: "20 — Initiatives",
-    sheets: [{
-      // Small tracker table (see 23_phase_l.sql) — upserted by name, same
-      // reasoning as kpi_targets/budgeted_positions. No source Database/*.xlsx
-      // workbook exists for this one either (seeded directly by the
-      // migration's INSERT); this card exists so initiatives can be revised
-      // without a new SQL migration.
-      sheetName: "Initiatives Data", table: "initiatives", dateFields: [],
-      upsertKey: "name",
-      fields: { "Name": "name", "Status": "status" },
-    }],
-  },
-  {
     id: "employee_benefits", fileLabel: "21 — Employee Benefits",
     sheets: [{
       // Real SAP Job Info benefits data (see 28_employee_benefits.sql) — a

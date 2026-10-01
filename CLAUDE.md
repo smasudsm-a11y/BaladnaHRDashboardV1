@@ -825,6 +825,10 @@ later phases depend on earlier ones' tables existing.
   table at the bottom of Executive Insights (no drilldown — there's no
   employee/db-index tie for this table, unlike every other chart on the
   page). New "20 — Initiatives" Data Refresh card, upserted by `name`.
+  **Removed 2026-10-01** (user: not relevant to Baladna): the HR
+  Initiatives table on Executive Insights, `initiatives` from `data.js`'s
+  TABLES/SECTION_TABLES, and the "20 — Initiatives" Data Refresh card. The
+  Supabase table and its policies were left in place, unused.
 
 ## Tech stack & constraints
 
