@@ -123,28 +123,6 @@ const UPLOAD_UNITS = [
     ],
   },
   {
-    id: "leave", fileLabel: "08 — Leave Dashboard",
-    sheets: [{
-      sheetName: "Leave Data", table: "leave", dateFields: ["leave_start_date", "leave_end_date"],
-      fields: {
-        "Employee ID": "employee_id", "Leave Type": "leave_type", "Leave Start Date": "leave_start_date",
-        "Leave End Date": "leave_end_date", "Leave Days": "leave_days", "Leave Status": "leave_status",
-        "Leave Balance": "leave_balance", "Department": "department", "Manager": "manager",
-      },
-    }],
-  },
-  {
-    id: "absenteeism", fileLabel: "09 — Absenteeism Dashboard",
-    sheets: [{
-      sheetName: "Absenteeism Data", table: "absenteeism", dateFields: ["absence_date"],
-      fields: {
-        "Employee ID": "employee_id", "Absence Date": "absence_date", "Absence Type": "absence_type",
-        "Absence Hours": "absence_hours", "Paid / Unpaid": "paid_unpaid", "Department": "department",
-        "Manager": "manager", "Approval Status": "approval_status",
-      },
-    }],
-  },
-  {
     id: "performance", fileLabel: "10 — Performance Dashboard",
     sheets: [{
       sheetName: "Performance Data", table: "performance", dateFields: ["rating_date"],
@@ -168,26 +146,6 @@ const UPLOAD_UNITS = [
         "Expiry Date": "expiry_date", "Compliance Status": "compliance_status", "Required Date": "required_date",
       },
     }],
-  },
-  {
-    id: "attendance_violations", fileLabel: "12 — Attendance Violations Dashboard",
-    sheets: [
-      {
-        sheetName: "Excess Hours Data", table: "excess_hours_violations", dateFields: ["violation_date"],
-        fields: {
-          "Employee ID": "employee_id", "Employee Name": "employee_name", "Job Title": "job_title",
-          "Division": "division", "Department": "department", "Section": "section",
-          "Violation Date": "violation_date", "Clock In": "clock_in", "Clock Out": "clock_out",
-          "Total Hours": "total_hours", "Manager Name": "manager_name",
-        },
-      },
-      {
-        sheetName: "Article 75 Data", table: "article75_violations", dateFields: ["week_start", "week_end"],
-        fields: {
-          "Week Start": "week_start", "Week End": "week_end", "Case Count": "case_count",
-        },
-      },
-    ],
   },
   // The 4 CTC tables are 4 separate cards, not one bundled file — Finance
   // uploads a new Actuals file every month, but Cost Centers/Budget/Revenue
