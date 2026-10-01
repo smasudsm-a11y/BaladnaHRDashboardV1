@@ -279,6 +279,18 @@ the index reads ~176. That's still >100, but it's because of workforce mix,
 not a bug: only ~55 women are currently employed, mostly white-collar
 Staff, against ~1,577 mostly Labor men on ~1,700 QAR basic. The raw index
 doesn't compare like-for-like roles.
+**Switched to a grade-matched index (same day, user's call)**.
+`compensation.js`'s `gradeMatchedGap()` compares women and men within the
+same pay group (grade + currency, so Qatar and Egypt G12 stay separate). It
+then averages the per-group female/male basic-pay ratios, weighted by the
+number of women in each. A group only counts with ≥ `MIN_PER_GENDER` (3) of
+each gender, and zero salaries (unpaid interns) are excluded. The KPI note
+states coverage (e.g. "44 of 52 women in 7 comparable grades"). The
+by-Legal-Entity/by-Level charts use the same method, drop groups with too
+few people (named in the subtitle), and label bars with the women count.
+Expected company-wide: **106.8** (44 of 52 paid women, 7 grades). By level:
+Executive 109.5 (27F), Senior 103.1 (8F), Managerial 103.9 (5F),
+Specialist/Supervisor 100.2 (4F).
 
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
