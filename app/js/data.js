@@ -288,10 +288,15 @@ export function fmtMoney(n, currency = "QAR") {
 // salary_structure band -- compa-ratio, range penetration, severity band --
 // don't need this, since both sides of that comparison are already in the
 // same currency.
-export const EGP_TO_QAR = 17.717;
+//
+// 17.717 is Egyptian pounds PER Qatari riyal, so EGP -> QAR DIVIDES. Until
+// 2026-10-01 this multiplied, inflating every Egypt salary ~314x in
+// cross-employee totals (e.g. a 20,670 EGP basic counted as ~366k QAR,
+// which pushed the Gender Pay Gap Index to 858.9).
+export const EGP_PER_QAR = 17.717;
 export function toQarEquivalent(amount, currency) {
   if (amount === null || amount === undefined) return amount;
-  return currency === "EGP" ? amount * EGP_TO_QAR : amount;
+  return currency === "EGP" ? amount / EGP_PER_QAR : amount;
 }
 
 // Phase G (19_phase_g.sql/kpi_targets): a shared good/bad delta line for any

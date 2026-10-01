@@ -268,6 +268,18 @@ Expected company-wide: 1,966 evaluated, avg compa-ratio 0.93, avg range
 penetration 27.7%, 137 under / 1,791 within / 38 over. Gender pay gap and
 salary histograms still use basic (not band comparisons, so unchanged).
 
+### EGP → QAR conversion was inverted (fixed 2026-10-01)
+
+`toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**
+QAR, so it must divide (now `EGP_PER_QAR`, divides). Every cross-employee
+QAR total that included Egypt was inflated ~314×: Compensation's averages,
+cost and pay gap (the Gender Pay Gap Index read **858.9**), Underpaid &
+Overpaid's QAR totals, and Leave/Executive's leave liability. With the fix
+the index reads ~176. That's still >100, but it's because of workforce mix,
+not a bug: only ~55 women are currently employed, mostly white-collar
+Staff, against ~1,577 mostly Labor men on ~1,700 QAR basic. The raw index
+doesn't compare like-for-like roles.
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
