@@ -22,6 +22,16 @@ $QarPerUsd = 3.64
 # band and its holder drops out of all band-based analysis.
 $ExcludedPositions = @("41201410")
 
+# Positions whose recorded range is a known SAP system error (user-confirmed
+# 2026-10-01). Their range is ignored when voting, so their (grade, job
+# family) takes the standard Qatar range from the other positions -- which it
+# already did by majority (50195364: G12 SALES, 2,027-2,533 vs 7 positions
+# on 5,700-7,130; 50189486: G6 MAINTENANCE, 1,500-1,730 vs 18 positions on
+# 3,700-4,800). Listed so a future refresh can't let the bad range win a
+# group where these become the only or tied position. Unlike
+# $ExcludedPositions, the holders still get a band.
+$SystemErrorRangePositions = @("50195364", "50189486")
+
 function Norm($v) { if ($null -eq $v) { return "" }; return "$v".Trim() }
 function GradeToG($gradeLabel) {
     if ("$gradeLabel" -match 'Grade-(\d+)') { return "G$($Matches[1])" }
@@ -71,6 +81,7 @@ $countryToCurrency = @{ "Qatar" = "QAR"; "Egypt" = "EGP" }
 $groups = @{}
 $usdConverted = 0
 $excludedCount = 0
+$ignoredCount = 0
 $convertedBands = @{}
 for ($r = 4; $r -le $rows; $r++) {
     $country = Norm $data[$r, $h["Country (Label)"]]
@@ -84,6 +95,7 @@ for ($r = 4; $r -le $rows; $r++) {
     if ($null -eq $min -or "$min" -eq "") { continue }
     $posNo = Norm $data[$r, $h["Position No."]]
     if ($ExcludedPositions -contains $posNo) { $excludedCount++; continue }
+    if ($SystemErrorRangePositions -contains $posNo) { $ignoredCount++; continue }
     if ($UsdRangePositions -contains $posNo) {
         $min = [math]::Round([double]$min * $QarPerUsd); $mid = [math]::Round([double]$mid * $QarPerUsd); $max = [math]::Round([double]$max * $QarPerUsd)
         $usdConverted++
@@ -125,6 +137,7 @@ WriteCsv (Join-Path $Scratch "salary_structure_ambiguous_rebuilt.csv") @("curren
 
 Write-Host "USD ranges converted at $QarPerUsd QAR/USD: $usdConverted of $($UsdRangePositions.Count) listed positions"
 Write-Host "Positions excluded: $excludedCount of $($ExcludedPositions.Count) listed"
+Write-Host "System-error ranges ignored: $ignoredCount of $($SystemErrorRangePositions.Count) listed"
 Write-Host "salary_structure rows: $($outRows.Count)"
 Write-Host "ambiguous combos (manual review): $($ambiguousRows.Count)"
 

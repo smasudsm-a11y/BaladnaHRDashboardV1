@@ -337,9 +337,18 @@ G17 Special Designation, mid 1,130). It's in the builder's
 `$ExcludedPositions`. As the only position in that group, excluding it
 removed the band (182 ranges), so its holder no longer appears in any
 band-based figure.
-Still flagged for Total Rewards, not fixed: 50195364 (Sales Retail G12,
-35%), 50189486 (Factory Engineering G6, 38%), and 50219305 (G14 QA/QC on
-19,810-24,760, possibly a Qatari-national scale). Long-term fix: load the
+**50195364 (G12 Sales) and 50189486 (G6 Maintenance)** are user-confirmed
+SAP system errors. They're in `$SystemErrorRangePositions`: their recorded
+ranges are ignored, so they take the standard Qatar range for their grade
++ job family. They were already outvoted 7:1 and 18:1, so the output is
+unchanged; the list guards future refreshes.
+**50219305 (G14 QA/QC, 19,810-24,760): NOT a Qatari-national scale.** That
+was an earlier guess; the user corrected it on 2026-10-01 to "expat scale".
+Open question at the time of writing: whether that means this position's
+range is an expat scale, or that Position Data's ranges in general are the
+expat scale, with Qatari nationals on a separate scale that isn't in the
+data. The latter would explain the two Qatari G14 hires paid 26,000 against
+an 11,800 mid. Don't re-assume either. Long-term fix: load the
 official pay-scale matrix instead of deriving it from positions.
 `build_workbooks.ps1` now writes to `sap-migration/workbooks/` (it pointed
 at an old temp folder).
