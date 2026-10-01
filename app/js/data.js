@@ -3,7 +3,6 @@ import { getClient } from "./supabase-client.js";
 const TABLES = {
   employeeMaster: "employee_master",
   orgHierarchy: "org_hierarchy",
-  recruitment: "recruitment",
   diversity: "diversity",
   attrition: "attrition",
   baseSalary: "base_salary",
@@ -16,7 +15,6 @@ const TABLES = {
   ctcBudget: "ctc_budget",
   ctcRevenue: "ctc_revenue",
   payroll: "payroll",
-  budgetedPositions: "budgeted_positions",
   criticalPositions: "critical_positions",
   incumbents: "incumbents",
   successors: "successors",
@@ -35,7 +33,6 @@ const TABLES = {
 const SECTION_TABLES = {
   exec: ["employee_master", "attrition", "kpi_targets", "critical_positions", "successors"],
   headcount: ["employee_master", "org_hierarchy"],
-  recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "total_rewards", "salary_structure"],
   diversity: ["diversity", "employee_master"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure", "employee_benefits"],
@@ -117,8 +114,6 @@ export async function loadAll(allowedIds) {
   db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
 
   db.employeeBenefitsIndex = new Map(db.employeeBenefits.map((b) => [b.employeeId, b]));
-
-  db.budgetedPositionsIndex = new Map(db.budgetedPositions.map((b) => [b.department, b]));
 
   db.criticalPositionsIndex = new Map(db.criticalPositions.map((p) => [p.positionId, p]));
 

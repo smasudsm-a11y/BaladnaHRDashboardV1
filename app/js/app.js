@@ -6,7 +6,6 @@ import { getUserAccess } from "./access.js";
 import { initZeeWidget, setPageContext, showZeeWidget, hideZeeWidget } from "./zee.js";
 import * as exec from "./pages/executive.js";
 import * as headcount from "./pages/headcount.js";
-import * as recruitment from "./pages/recruitment.js";
 import * as newhires from "./pages/newhires.js";
 import * as diversity from "./pages/diversity.js";
 import * as compensation from "./pages/compensation.js";
@@ -29,7 +28,7 @@ import * as ctcConverter from "./pages/ctc-converter.js";
 
 const NAV = [
   { group: "Overview", pages: [exec] },
-  { group: "Talent Acquisition", pages: [recruitment, newhires] },
+  { group: "Talent Acquisition", pages: [newhires] },
   { group: "Workforce", pages: [headcount, diversity] },
   { group: "Rewards", pages: [compensation, underpaidOverpaid] },
   { group: "Performance & Growth", pages: [attrition, performance, promotions, training, nhp] },

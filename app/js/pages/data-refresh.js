@@ -46,22 +46,6 @@ const UPLOAD_UNITS = [
     }],
   },
   {
-    id: "recruitment", fileLabel: "04 — Recruitment Dashboard",
-    sheets: [{
-      sheetName: "Recruitment Data", table: "recruitment",
-      dateFields: ["requisition_open_date", "requisition_close_date", "interview_date", "offer_date", "joining_date"],
-      fields: {
-        "Requisition ID": "requisition_id", "Vacancy Position": "vacancy_position", "Job Grade": "job_grade",
-        "Department": "department", "Hiring Manager": "hiring_manager",
-        "Requisition Open Date": "requisition_open_date", "Requisition Close Date": "requisition_close_date",
-        "Candidate ID": "candidate_id", "Candidate Gender": "candidate_gender",
-        "Candidate Nationality": "candidate_nationality", "Source of Hire": "source_of_hire",
-        "Interview Date": "interview_date", "Offer Date": "offer_date", "Joining Date": "joining_date",
-        "Recruitment Cost": "recruitment_cost",
-      },
-    }],
-  },
-  {
     id: "diversity", fileLabel: "05 — Diversity Dashboard",
     sheets: [{
       sheetName: "Diversity Data", table: "diversity", dateFields: [],
@@ -202,19 +186,6 @@ const UPLOAD_UNITS = [
         "Air Ticket Cost": "air_ticket_cost", "Net Pay": "net_pay",
         "Annual Leave Cost": "annual_leave_cost",
       },
-    }],
-  },
-  {
-    id: "budgeted_positions", fileLabel: "16 — Budgeted Positions",
-    sheets: [{
-      // Small, rarely-changing department -> headcount-budget lookup (see
-      // 17_phase_f.sql) — upserted by department, same reasoning as
-      // cost_centers. No source Database/*.xlsx workbook exists for this one
-      // (seeded directly by the migration's INSERT); this card exists so
-      // Total Rewards can revise department budgets going forward.
-      sheetName: "Budgeted Positions Data", table: "budgeted_positions", dateFields: [],
-      upsertKey: "department",
-      fields: { "Department": "department", "Budgeted Headcount": "budgeted_headcount" },
     }],
   },
   {

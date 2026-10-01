@@ -874,6 +874,14 @@ later phases depend on earlier ones' tables existing.
   `leave`, `absenteeism`, `excess_hours_violations` and
   `article75_violations` remain in Supabase, unused; the Attendance
   Violations / Leave gotchas above are historical.
+  **Recruitment removed too (2026-10-01, same reason):** `recruitment.js`
+  (Talent Acquisition now only has New Hires & Onboarding), the
+  "04 — Recruitment" and "16 — Budgeted Positions" Data Refresh cards, and
+  the `recruitment`/`budgeted_positions` table loading. Recruitment was its
+  only reader of both. Note that `budgeted_positions` holds REAL SAP data
+  (budgeted positions per department from Position Data). If a vacancy
+  view is ever wanted again (e.g. on Headcount), it's still in Supabase,
+  but the Data Refresh card would need restoring to update it.
 
 ## Tech stack & constraints
 
