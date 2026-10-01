@@ -1,4 +1,4 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtPct, legalEntityAllowed } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, sortedUnique, fmtInt, fmtPct, legalEntityAllowed, REFERENCE_TODAY } from "../data.js";
 import { kpiCard, chartCard, tableCard, lineChart, barChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- Current Headcount and the trend chart's
@@ -12,6 +12,13 @@ export const meta = { id: "headcount-forecast", label: "Headcount Forecast", sub
 
 const sumField = (rows, field) => rows.reduce((s, r) => s + (r[field] || 0), 0);
 
+// "2026-09-01" -> "2026-08-31".
+function lastDayOfPreviousMonth(period) {
+  const [y, m] = period.slice(0, 7).split("-").map(Number);
+  const prevY = m === 1 ? y - 1 : y, prevM = m === 1 ? 12 : m - 1;
+  return monthEnd(`${prevY}-${String(prevM).padStart(2, "0")}`);
+}
+
 export function render({ db, contentEl, filtersEl }) {
   const divisions = ["All", ...sortedUnique(db.employeeMaster, (e) => e.division).sort()];
   let division = "All";
@@ -23,7 +30,17 @@ export function render({ db, contentEl, filtersEl }) {
     contentEl.innerHTML = "";
 
     const em = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity) && (division === "All" || e.division === division));
-    const months = lastNMonths(12);
+    const forecastRows = db.headcountForecast.filter((r) => division === "All" || r.division === division);
+    const forecastPeriods = sortedUnique(forecastRows, (r) => r.period).sort();
+    // Actuals end the month before the stored forecast starts, NOT at the
+    // real current date: the forecast was generated from an Aug-2026
+    // baseline (periods Sep 2026 onward), so ending actuals at today would
+    // overlap/duplicate months on the chart once today passes Aug 2026.
+    // Falls back to today if there's no forecast loaded. Rebuilding the
+    // forecast against real SAP data (unstarted, see CLAUDE.md) would move
+    // this anchor forward on its own.
+    const anchor = forecastPeriods.length ? lastDayOfPreviousMonth(forecastPeriods[0]) : REFERENCE_TODAY;
+    const months = lastNMonths(12, anchor);
 
     // The trend's last historical point deliberately uses the same
     // isActiveAsOf(monthEnd) cutoff as every other month in this series
@@ -34,8 +51,6 @@ export function render({ db, contentEl, filtersEl }) {
     const actualSeries = months.map((ym) => em.filter((e) => isActiveAsOf(e, monthEnd(ym))).length);
     const currentHeadcount = actualSeries[actualSeries.length - 1];
 
-    const forecastRows = db.headcountForecast.filter((r) => division === "All" || r.division === division);
-    const forecastPeriods = sortedUnique(forecastRows, (r) => r.period).sort();
     const lastPeriod = forecastPeriods[forecastPeriods.length - 1];
     const forecastByPeriod = (period) => forecastRows.filter((r) => r.period === period);
 
@@ -48,7 +63,7 @@ export function render({ db, contentEl, filtersEl }) {
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
-    kpiCard(kpiRow, { label: "Current Headcount", value: fmtInt(currentHeadcount), note: `month-end ${monthLabel(months[months.length - 1])}` });
+    kpiCard(kpiRow, { label: forecastPeriods.length ? "Baseline Headcount" : "Current Headcount", value: fmtInt(currentHeadcount), note: `${forecastPeriods.length ? "forecast starting point · " : ""}month-end ${monthLabel(months[months.length - 1])}` });
     kpiCard(kpiRow, { label: "Forecasted Headcount (12 Months)", value: fmtInt(forecastHeadcount12mo), note: lastPeriod ? monthLabel(lastPeriod.slice(0, 7)) : "" });
     kpiCard(kpiRow, { label: "Projected Net Change", value: `${netChange >= 0 ? "+" : ""}${fmtInt(netChange)}`, note: "over 12 months" });
     kpiCard(kpiRow, { label: "Projected Growth", value: fmtPct(growthPct), note: "over 12 months" });

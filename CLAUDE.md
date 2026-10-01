@@ -290,7 +290,25 @@ defaults to the last complete year. It adds "Left During Probation"
 and a collapsible list), which respects entity/department but not
 year/month. Expected (2025, all entities): 297 starters, 19 women,
 6-mo retention 87.9%, 12-mo 78.6% (of 168), 11.1% left during probation.
-Now: 97 on probation, 7 ending ≤30 days, 33 ≤90 days.
+Now: 97 on probation, 7 ending ≤30 days, 33 ≤90 days (as of the old
+fixed date; see below).
+
+### "Today" is now the real current date (2026-10-01)
+
+`REFERENCE_TODAY` in `data.js` was a fixed `"2026-08-02"` from the
+synthetic-data era. At the user's request it's now the browser's local
+date (`YYYY-MM-DD`, evaluated once at page load), so every TTM window,
+current headcount, retention eligibility and probation status moves with
+the calendar. **Exception: `headcount-forecast.js`** anchors its actuals to
+the month before the stored forecast's first period (the forecast was
+generated from an Aug-2026 baseline, so periods start Sep 2026). Otherwise
+actuals and forecast would duplicate months once today passes Aug 2026.
+Its KPI is now labelled "Baseline Headcount". Rebuilding that forecast on
+real data is still unstarted and would move the anchor forward
+automatically. Caveat: figures are only as fresh as the last SAP upload, so
+hires and exits after the extract date aren't reflected until the next
+refresh. New Hires "Now" as of 2026-10-01: 102 on probation, 10 ending
+≤30 days, 55 ≤90 days. 2025 12-mo retention 79.4% (of 218).
 
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
