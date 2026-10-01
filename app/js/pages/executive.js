@@ -1,11 +1,13 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, targetDelta, REFERENCE_TODAY, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, noteBanner, legalEntityFilter } from "../charts.js";
 
-// dataStatus: "partial" -- this page rolls up attrition/leave/base_salary
-// (real, from the SAP batch) alongside absenteeism (no source),
-// and Succession Coverage % (needs `successors`, no source). The Employee
-// Lifecycle Score KPI was removed 2026-10-01 along with the Employee
-// Satisfaction module it came from.
+// dataStatus: "partial" -- headcount/hires/attrition are real (SAP), but
+// Succession Coverage % needs `successors`, which has no source. Removed
+// 2026-10-01 with the modules they came from: Employee Lifecycle Score
+// (Employee Satisfaction), and Avg Absence Hours (synthetic absenteeism),
+// Est. Annual Leave Liability (always 0 -- SAP has no leave balances) and
+// the Leave Days Taken chart (filtered on "Approved" while SAP says
+// "APPROVED", so it was empty) with Leave & Absence.
 export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leadership at-a-glance across the employee lifecycle", dataStatus: "partial" };
 
 export function render({ db, contentEl, filtersEl }) {
@@ -16,8 +18,6 @@ export function render({ db, contentEl, filtersEl }) {
     const em = db.employeeMaster.filter((e) => legalEntityAllowed(db, e.legalEntity));
     const active = em.filter(isCurrentlyEmployed);
     const attrition = db.attrition.filter((a) => employeeLegalEntityAllowed(db, a.employeeId));
-    const absenteeism = db.absenteeism.filter((a) => employeeLegalEntityAllowed(db, a.employeeId));
-    const leave = db.leave.filter((l) => employeeLegalEntityAllowed(db, l.employeeId));
     // critical_positions/successors are NOT filtered by Legal Entity: the
     // table has no legalEntity column of its own (only businessUnit, the
     // now-retired Cluster concept), and resolving one via the incumbent
@@ -54,26 +54,6 @@ export function render({ db, contentEl, filtersEl }) {
     const avgHeadcountTTM = (active.length + em.filter((e) => isActiveAsOf(e, ttmStart)).length) / 2;
     const attritionRate = avgHeadcountTTM ? (termsTTM.length / avgHeadcountTTM) * 100 : 0;
 
-    // Absence rate proxy
-    const absTTM = absenteeism.filter((a) => a.absenceDate >= ttmStart);
-    const avgAbsenceHours = active.length ? (absTTM.reduce((s, a) => s + a.absenceHours, 0) / active.length) : 0;
-
-    // Annual leave liability approx: latest Annual balance per employee * (latest base salary / 30)
-    const annualLeaveRows = leave.filter((l) => {
-      const e = db.employeeIndex.get(l.employeeId);
-      return l.leaveType === "Annual" && e && isCurrentlyEmployed(e);
-    });
-    const latestAnnual = new Map();
-    for (const row of annualLeaveRows) {
-      const prev = latestAnnual.get(row.employeeId);
-      if (!prev || row.leaveStartDate > prev.leaveStartDate) latestAnnual.set(row.employeeId, row);
-    }
-    let leaveLiability = 0;
-    for (const [empId, row] of latestAnnual) {
-      const sal = db.latestBaseSalary.get(empId);
-      if (sal) leaveLiability += toQarEquivalent((row.leaveBalance || 0) * (sal.baseSalary / 30), sal.currency);
-    }
-
     // Succession Coverage % (Phase L rollup) — same definition as
     // succession.js's own KPI: named-successor positions / total critical
     // positions.
@@ -98,10 +78,8 @@ export function render({ db, contentEl, filtersEl }) {
       note: `${voluntary} voluntary · ${involuntary} involuntary`,
       ...targetDelta(db, "turnover_rate", attritionRate),
     });
-    kpiCard(kpiRow, { label: "Avg Absence Hours / Employee (TTM)", value: fmtInt(avgAbsenceHours), note: `${fmtInt(absTTM.length)} logged absence events` });
-    kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(leaveLiability), note: "Unused Annual balance × est. daily rate" });
     kpiCard(kpiRow, { label: "Succession Coverage", value: fmtPct(successionCoveragePct), note: `${positionsWithSuccessor} of ${criticalPositions.length} critical roles` });
-    noteBanner(contentEl, `<b>Scope note:</b> this covers the 10 Phase-1 data-backed modules from the PRD. Executive Insights below summarizes headcount, hiring, attrition, and leave/absence trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
+    noteBanner(contentEl, `<b>Scope note:</b> Executive Insights summarizes headcount, hiring and attrition trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
 
     const grid = document.createElement("div");
     grid.className = "grid-2";
@@ -146,17 +124,10 @@ export function render({ db, contentEl, filtersEl }) {
     const leLabels = Array.from(leCounts.keys());
     const c5 = chartCard(grid3, { title: "Headcount by Legal Entity", tableColumns: [{ key: "le", label: "Legal Entity" }, { key: "n", label: "Headcount", num: true }], tableRows: leLabels.map((l) => ({ le: l, n: leCounts.get(l) })), drilldown: { records: allActive, matchField: "legalEntity", db } });
     barChart(c5, { labels: leLabels, datasets: [{ label: "Headcount", data: leLabels.map((l) => leCounts.get(l)) }], showLegend: false });
-
-    // Leave taken TTM by type
-    const leaveTTM = leave.filter((l) => l.leaveStatus === "Approved" && l.leaveStartDate >= ttmStart);
-    const leaveByType = new Map();
-    for (const l of leaveTTM) leaveByType.set(l.leaveType, (leaveByType.get(l.leaveType) || 0) + l.leaveDays);
-    const ltLabels = Array.from(leaveByType.keys());
-    const c6 = chartCard(grid3, { title: "Leave Days Taken (TTM)", sub: "Approved leave, by type", drilldown: { records: leaveTTM, matchField: "leaveType", db } });
-    barChart(c6, { labels: ltLabels, datasets: [{ label: "Days", data: ltLabels.map((t) => Math.round(leaveByType.get(t))) }], showLegend: false });
-    // The Phase L "HR Initiatives" tracker table was removed 2026-10-01 at
-    // the user's request (not relevant to Baladna). The `initiatives` table
-    // still exists in Supabase but nothing reads or loads it.
+    // Removed 2026-10-01 at the user's request (not relevant to Baladna):
+    // the Phase L "HR Initiatives" tracker table, and the "Leave Days Taken
+    // (TTM)" chart along with the Leave & Absence module. Their Supabase
+    // tables still exist but nothing reads or loads them.
   }
 
   draw();

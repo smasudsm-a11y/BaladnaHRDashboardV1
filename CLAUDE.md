@@ -860,6 +860,20 @@ later phases depend on earlier ones' tables existing.
   `headcount-forecast` entries in `user_access.sections` are harmless,
   since nothing grants or reads them now. The Phase J/K write-ups and
   gotchas above are historical.
+  **Also removed 2026-10-01, same reason:** **Leave & Absence** (`leave.js`;
+  the "Rewards & Time" nav group is now just "Rewards") and **Attendance
+  Violations** (`attendance-violations.js`, the "Compliance" nav group),
+  plus their "08 — Leave", "09 — Absenteeism" and "12 — Attendance
+  Violations" Data Refresh cards and table loading. Executive Insights lost
+  three leave/absence figures that were broken anyway: Avg Absence Hours
+  (synthetic absenteeism), Est. Annual Leave Liability (always 0, as SAP has
+  no leave balances), and the Leave Days Taken chart (filtered on
+  "Approved" while SAP stores "APPROVED", so it was empty). Executive no
+  longer loads leave, absenteeism or base_salary. Payroll's own leave
+  liability comes from the `payroll` table and is unaffected. Tables
+  `leave`, `absenteeism`, `excess_hours_violations` and
+  `article75_violations` remain in Supabase, unused; the Attendance
+  Violations / Leave gotchas above are historical.
 
 ## Tech stack & constraints
 

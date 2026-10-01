@@ -12,12 +12,10 @@ import * as diversity from "./pages/diversity.js";
 import * as compensation from "./pages/compensation.js";
 import * as underpaidOverpaid from "./pages/underpaid-overpaid.js";
 import * as attrition from "./pages/attrition.js";
-import * as leave from "./pages/leave.js";
 import * as performance from "./pages/performance.js";
 import * as training from "./pages/training.js";
 import * as nhp from "./pages/nhp.js";
 import * as promotions from "./pages/promotions.js";
-import * as attendanceViolations from "./pages/attendance-violations.js";
 import * as ctcBudgetActual from "./pages/ctc-budget-actual.js";
 import * as ctcExpenseCategory from "./pages/ctc-expense-category.js";
 import * as ctcVarianceExplorer from "./pages/ctc-variance-explorer.js";
@@ -33,9 +31,8 @@ const NAV = [
   { group: "Overview", pages: [exec] },
   { group: "Talent Acquisition", pages: [recruitment, newhires] },
   { group: "Workforce", pages: [headcount, diversity] },
-  { group: "Rewards & Time", pages: [compensation, underpaidOverpaid, leave] },
+  { group: "Rewards", pages: [compensation, underpaidOverpaid] },
   { group: "Performance & Growth", pages: [attrition, performance, promotions, training, nhp] },
-  { group: "Compliance", pages: [attendanceViolations] },
   { group: "CTC Report", pages: [ctcBudgetActual, ctcExpenseCategory, ctcVarianceExplorer, ctcYearOnYear] },
   { group: "Payroll Report", pages: [payroll] },
   { group: "Succession Planning", pages: [succession] },
