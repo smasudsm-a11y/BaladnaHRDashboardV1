@@ -337,7 +337,17 @@ export const JOB_LEVEL_ORDER = ["Junior", "Mid", "Senior", "Executive", "Special
 // in the real hierarchy and isn't a people-management tier.
 export const LEADERSHIP_LEVELS = ["Specialist/Supervisor", "Managerial", "Director", "Chief", "CEO/Group CEO"];
 
-export const REFERENCE_TODAY = "2026-08-02";
+// "Today" for every as-of figure (TTM windows, current headcount, retention
+// eligibility, probation status). It was a fixed "2026-08-02" while the data
+// was synthetic; switched to the real current date on 2026-10-01 at the
+// user's request, now that the data is real SAP. Local date (the browser's
+// timezone -- Asia/Qatar for users here), as YYYY-MM-DD, evaluated once at
+// page load. headcount-forecast.js deliberately anchors to its stored
+// forecast's own baseline instead -- see that file.
+function localIsoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+export const REFERENCE_TODAY = localIsoDate(new Date());
 
 export function lastNMonths(n, refDate = REFERENCE_TODAY) {
   const [ry, rm] = refDate.split("-").map(Number);
