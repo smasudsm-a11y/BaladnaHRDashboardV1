@@ -21,35 +21,47 @@ function positioningBucket(rangePenetration) {
   return "Overpaid";
 }
 
-// Grade-matched Gender Pay Gap Index (user's call, 2026-10-01). Replaces the
-// raw "female avg / male avg" index, which mostly measured workforce mix:
-// ~55 women, nearly all white-collar Staff, against ~1,577 Labor men on
-// ~1,700 QAR basic, so the raw figure read ~176 with no like-for-like
-// meaning. Instead, compare women and men inside the same grade (and pay
-// system -- grade + currency, so Qatar and Egypt G12 aren't pooled), then
-// average those per-grade ratios weighted by the number of women in each.
-// That answers "in the same grade, how does women's basic pay compare with
-// men's?". A grade only counts when it has at least MIN_PER_GENDER of each
-// gender, so one person can't swing the result. Zero/blank salaries (unpaid
-// interns) are excluded. Basic salary, the usual equal-pay measure.
+// Gender Pay Gap Index, compa-ratio based (user's call, 2026-10-01; final
+// of three versions the same day). History, so it isn't re-litigated:
+// 1. Raw female avg / male avg basic read ~176 -- pure workforce mix (~55
+//    women, nearly all Staff, vs ~1,577 Labor men on ~1,700 QAR basic).
+// 2. Grade-matched basic read 106.8, but Baladna's pay ranges are keyed on
+//    grade AND job family, and within a grade women sit in HR/Sales/Admin
+//    while men sit in QA/QC/Production/Maintenance -- different ranges.
+// 3. This version: each person's compa-ratio (total cash vs THEIR OWN
+//    grade + job-family range midpoint -- see bandComparablePay), so the
+//    comparison follows the pay policy exactly. Women's avg / men's avg,
+//    computed within each workforce category (Staff vs Staff, Labor vs
+//    Labor -- Labor sits lower in its ranges and is almost all men), then
+//    weighted by women per category. A category needs MIN_PER_GENDER of
+//    each gender to count.
+// Verified against tenure: Staff women and men with the same tenure sit
+// within ~0.02 of each other (<2 yrs 0.99 vs 1.01, 5+ yrs 0.92 vs 0.91).
+// What remains is salary compression (new hires ~1.00, 5+ yrs ~0.91), and
+// recent hires are disproportionately women.
 const MIN_PER_GENDER = 3;
-function gradeMatchedGap(rows) {
+function compaGap(rows) {
   const groups = new Map();
+  let totalWomen = 0;
   for (const r of rows) {
-    if (!(r.baseSalary > 0) || (r.gender !== "Male" && r.gender !== "Female")) continue;
-    if (!groups.has(r.payGroup)) groups.set(r.payGroup, { Male: [], Female: [] });
-    groups.get(r.payGroup)[r.gender].push(r.baseSalary);
+    if (r.gender === "Female") totalWomen += 1;
+    if (r.compaRatio === null || (r.gender !== "Male" && r.gender !== "Female")) continue;
+    const key = r.workforceCategory || "Unclassified";
+    if (!groups.has(key)) groups.set(key, { Male: [], Female: [] });
+    groups.get(key)[r.gender].push(r.compaRatio);
   }
   const avg = (a) => a.reduce((s, v) => s + v, 0) / a.length;
-  let weighted = 0, women = 0, grades = 0, totalWomen = 0;
+  let weighted = 0, women = 0, wSum = 0, mSum = 0;
   for (const g of groups.values()) {
-    totalWomen += g.Female.length;
     if (g.Female.length < MIN_PER_GENDER || g.Male.length < MIN_PER_GENDER) continue;
     weighted += (avg(g.Female) / avg(g.Male)) * g.Female.length;
+    wSum += avg(g.Female) * g.Female.length;
+    mSum += avg(g.Male) * g.Female.length;
     women += g.Female.length;
-    grades += 1;
   }
-  return { index: women ? (weighted / women) * 100 : null, women, grades, totalWomen };
+  return women
+    ? { index: (weighted / women) * 100, women, totalWomen, femaleCompa: wSum / women, maleCompa: mSum / women }
+    : { index: null, women: 0, totalWomen };
 }
 
 function buildRecords(db) {
@@ -70,8 +82,6 @@ function buildRecords(db) {
     out.push({
       employeeId,
       grade: sal.grade,
-      // Grade + currency: the like-for-like comparison group for the pay gap.
-      payGroup: `${sal.grade}|${sal.currency}`,
       gradeTier: struct ? struct.gradeTier : null,
       baseSalary: toQarEquivalent(sal.baseSalary, sal.currency),
       totalCash: tr ? toQarEquivalent(tr.totalCashCompensation, sal.currency) : null,
@@ -104,7 +114,7 @@ export function render({ db, contentEl, filtersEl }) {
     const avgCTC = avgBy(rows, (r) => r.totalCash || 0);
     const avgCompa = avgBy(rows.filter((r) => r.compaRatio !== null), (r) => r.compaRatio);
     const avgPenetration = avgBy(rows.filter((r) => r.rangePenetration !== null), (r) => r.rangePenetration);
-    const gap = gradeMatchedGap(rows);
+    const gap = compaGap(rows);
     const totalCost = rows.reduce((s, r) => s + (r.totalRem || 0), 0);
     const outsideRange = rows.filter((r) => r.positioning === "Underpaid" || r.positioning === "Overpaid").length;
 
@@ -117,8 +127,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, {
       label: "Gender Pay Gap Index", value: gap.index === null ? "n/a" : fmtDec(gap.index, 1),
       note: gap.index === null
-        ? `too few women and men in the same grade (min ${MIN_PER_GENDER} each)`
-        : `same-grade basic pay, 100 = parity · ${fmtInt(gap.women)} of ${fmtInt(gap.totalWomen)} women in ${fmtInt(gap.grades)} comparable grades`,
+        ? `too few women and men with a pay range to compare (min ${MIN_PER_GENDER} each)`
+        : `position in own pay range, 100 = parity · women ${fmtDec(gap.femaleCompa, 2)} vs men ${fmtDec(gap.maleCompa, 2)} compa-ratio · ${fmtInt(gap.women)} of ${fmtInt(gap.totalWomen)} women`,
       deltaKind: gap.index === null ? undefined : gap.index < 95 ? "bad" : gap.index < 100 ? "warn" : "good",
     });
     kpiCard(kpiRow, { label: "Monthly Compensation Cost", value: fmtMoney(totalCost), note: "sum of total remuneration" });
@@ -143,19 +153,19 @@ export function render({ db, contentEl, filtersEl }) {
     // Entity" to one bar) — same convention as every other breakdown chart in the app.
     const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
     const leOrder = sortedUnique(records, (r) => r.legalEntity).sort();
-    // Groups with no grade meeting the minimum are left off the chart (and
-    // named in the subtitle) rather than drawn as a misleading 0.
+    // Groups where no workforce category meets the minimum are left off the
+    // chart (and named in the subtitle) rather than drawn as a misleading 0.
     const gapChart = (groupLabels, rowsFor) => {
       const shown = [], skipped = [];
       for (const label of groupLabels) {
-        const g = gradeMatchedGap(rowsFor(label));
+        const g = compaGap(rowsFor(label));
         if (g.totalWomen === 0) continue; // no women at all -- nothing to compare, not worth naming
         if (g.index === null) skipped.push(label);
         else shown.push([`${label} (${g.women}F)`, label, Math.round(g.index * 10) / 10]);
       }
       return { shown, skipped };
     };
-    const gapSub = (skipped) => `Same-grade basic pay, women vs men (100 = parity)${skipped.length ? ` · too few to compare: ${skipped.join(", ")}` : ""}`;
+    const gapSub = (skipped) => `Women's vs men's position in their own pay range (compa-ratio, 100 = parity)${skipped.length ? ` · too few to compare: ${skipped.join(", ")}` : ""}`;
 
     const byLe = gapChart(leOrder, (l) => levelFiltered.filter((r) => r.legalEntity === l));
     const c3 = chartCard(grid, { title: "Pay Gap Index by Legal Entity", sub: gapSub(byLe.skipped), drilldown: { records: levelFiltered, matchFn: (r, label) => label.startsWith(`${r.legalEntity} (`), db } });
