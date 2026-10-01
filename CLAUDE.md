@@ -332,8 +332,12 @@ USD vs QAR) to the standard 36,200 mid. These employees' **pay** is
 recorded in QAR, so only ranges convert. Effect: 4 Group Finance employees
 moved off "Overpaid" (2 to Within, 2 to Underpaid). Company-wide
 under/within/over went from 129/1,791/38 to 131/1,793/34.
-Still flagged for Total Rewards, not fixed: 41201410 (GCEO Office G17
-Special Designation, mid 1,130 = 4% of normal), 50195364 (Sales Retail G12,
+**41201410 excluded** (user-confirmed: a consultant role, GCEO Office,
+G17 Special Designation, mid 1,130). It's in the builder's
+`$ExcludedPositions`. As the only position in that group, excluding it
+removed the band (182 ranges), so its holder no longer appears in any
+band-based figure.
+Still flagged for Total Rewards, not fixed: 50195364 (Sales Retail G12,
 35%), 50189486 (Factory Engineering G6, 38%), and 50219305 (G14 QA/QC on
 19,810-24,760, possibly a Qatari-national scale). Long-term fix: load the
 official pay-scale matrix instead of deriving it from positions.

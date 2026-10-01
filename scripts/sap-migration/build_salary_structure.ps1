@@ -15,6 +15,13 @@ $Scratch = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard
 $UsdRangePositions = @("50203780", "50213777", "50192214", "50200332")
 $QarPerUsd = 3.64
 
+# Positions left out of range building entirely. 41201410 is a consultant
+# role (GCEO Office, G17 SPECIAL DESIGNATION) whose recorded range,
+# 940/1,130/1,320, isn't a real pay band -- user-confirmed 2026-10-01. It was
+# the only position in that (grade, job family), so excluding it removes the
+# band and its holder drops out of all band-based analysis.
+$ExcludedPositions = @("41201410")
+
 function Norm($v) { if ($null -eq $v) { return "" }; return "$v".Trim() }
 function GradeToG($gradeLabel) {
     if ("$gradeLabel" -match 'Grade-(\d+)') { return "G$($Matches[1])" }
@@ -63,6 +70,7 @@ $countryToCurrency = @{ "Qatar" = "QAR"; "Egypt" = "EGP" }
 # group (Currency, Grade, JobFamily) -> band -> count, Qatar+Egypt each keyed by their own currency
 $groups = @{}
 $usdConverted = 0
+$excludedCount = 0
 $convertedBands = @{}
 for ($r = 4; $r -le $rows; $r++) {
     $country = Norm $data[$r, $h["Country (Label)"]]
@@ -75,6 +83,7 @@ for ($r = 4; $r -le $rows; $r++) {
     $min = $data[$r, $h["Sal. Min"]]; $mid = $data[$r, $h["Sal. Mid"]]; $max = $data[$r, $h["Sal. Max"]]
     if ($null -eq $min -or "$min" -eq "") { continue }
     $posNo = Norm $data[$r, $h["Position No."]]
+    if ($ExcludedPositions -contains $posNo) { $excludedCount++; continue }
     if ($UsdRangePositions -contains $posNo) {
         $min = [math]::Round([double]$min * $QarPerUsd); $mid = [math]::Round([double]$mid * $QarPerUsd); $max = [math]::Round([double]$max * $QarPerUsd)
         $usdConverted++
@@ -115,6 +124,7 @@ WriteCsv (Join-Path $Scratch "salary_structure_rebuilt.csv") @("grade","job_fami
 WriteCsv (Join-Path $Scratch "salary_structure_ambiguous_rebuilt.csv") @("currency","grade","job_family","all_bands_seen","resolution") $ambiguousRows
 
 Write-Host "USD ranges converted at $QarPerUsd QAR/USD: $usdConverted of $($UsdRangePositions.Count) listed positions"
+Write-Host "Positions excluded: $excludedCount of $($ExcludedPositions.Count) listed"
 Write-Host "salary_structure rows: $($outRows.Count)"
 Write-Host "ambiguous combos (manual review): $($ambiguousRows.Count)"
 
