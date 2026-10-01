@@ -150,7 +150,7 @@ NewWorkbook @(
         fields = OD @(
             "grade","Grade","job_family","Job Family","currency","Currency",
             "salary_range_min","Salary Range Minimum","salary_midpoint","Salary Midpoint",
-            "salary_range_max","Salary Range Maximum","grade_tier","Grade Tier"
+            "salary_range_max","Salary Range Maximum","grade_tier","Grade Tier","pay_scale","Pay Scale"
         )
     }
 ) "07_Compensation_Dashboard.xlsx"

@@ -112,6 +112,9 @@ const UPLOAD_UNITS = [
           "Salary Range Minimum": "salary_range_min",
           "Salary Midpoint": "salary_midpoint", "Salary Range Maximum": "salary_range_max",
           "Grade Tier": "grade_tier",
+          // Expat / National / Syria Project / Standard -- see
+          // 31_salary_structure_pay_scale.sql.
+          "Pay Scale": "pay_scale",
         },
       },
     ],

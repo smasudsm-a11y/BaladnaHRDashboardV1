@@ -1,4 +1,4 @@
-import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryBandFor, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
@@ -53,7 +53,7 @@ function buildRecords(db) {
     const e = db.employeeIndex.get(employeeId);
     if (!e || !isCurrentlyEmployed(e)) continue;
     if (EXCLUDED_WORKFORCE.includes(e.workforceCategory)) continue;
-    const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
+    const struct = salaryBandFor(db, e, sal);
     if (!struct) continue;
     // Total monthly cash, not basic -- the SAP bands are defined on total
     // cash (see bandComparablePay in data.js).
@@ -110,7 +110,7 @@ export function render({ db, contentEl, filtersEl }) {
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
-    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length), note: "Staff and Labor only; interns and consultants excluded" });
+    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length), note: "vs. official Expat / National pay scales; interns and consultants excluded" });
     kpiCard(kpiRow, { label: "Underpaid Employees", value: fmtInt(underpaid.length), note: `${fmtPct(rows.length ? (underpaid.length / rows.length) * 100 : 0)} of evaluated` });
     kpiCard(kpiRow, { label: "Difference from Min Salary", value: fmtMoney(underpaidTotal), note: "total shortfall vs. grade minimum" });
     kpiCard(kpiRow, { label: "Overpaid Employees", value: fmtInt(overpaid.length), note: `${fmtPct(rows.length ? (overpaid.length / rows.length) * 100 : 0)} of evaluated` });

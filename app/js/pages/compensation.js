@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryBandFor, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, barChart, bin, filterSelect, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
@@ -70,7 +70,7 @@ function buildRecords(db) {
     const e = db.employeeIndex.get(employeeId);
     if (!e || !isCurrentlyEmployed(e)) continue;
     const tr = db.latestTotalRewards.get(employeeId);
-    const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
+    const struct = salaryBandFor(db, e, sal);
     // rangePenetration/compaRatio compare TOTAL cash (the figure the SAP
     // bands are defined on -- see bandComparablePay) against the employee's
     // own native-currency band, so no conversion there. baseSalary/totalCash/
@@ -122,7 +122,7 @@ export function render({ db, contentEl, filtersEl }) {
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
     kpiCard(kpiRow, { label: "Avg Total Cash Compensation", value: fmtMoney(avgCTC), note: `${fmtInt(rows.length)} active employees` });
-    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. grade midpoint (1.00 = at mid)" });
+    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. own pay-scale midpoint (Expat / National; 1.00 = at mid)" });
     kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration), note: "total cash within grade range" });
     kpiCard(kpiRow, {
       label: "Gender Pay Gap Index", value: gap.index === null ? "n/a" : fmtDec(gap.index, 1),

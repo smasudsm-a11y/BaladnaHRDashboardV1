@@ -353,6 +353,38 @@ official pay-scale matrix instead of deriving it from positions.
 `build_workbooks.ps1` now writes to `sap-migration/workbooks/` (it pointed
 at an old temp folder).
 
+### Official pay scales replace derived Qatar ranges (2026-10-01)
+
+Total Rewards supplied Baladna Qatar's **official Expat scale** (G2-G7,
+G9-G24; G8 deliberately has no range) and **Qatari National scale**
+(G10-G24). Both are by grade only, and transcribed into
+`scripts/sap-migration/build_official_salary_structure.ps1`. That script
+writes `salary_structure_draft.csv`: Expat/National rows with
+`job_family = "ALL"`; 4 "Syria Project" rows (the USD ranges converted at
+3.64, per grade + job family, kept by user decision); and Egypt's
+Position-Data-derived EGP rows as "Standard" (no official Egypt scale
+yet). **Run `build_salary_structure.ps1` first**, because it produces the
+EGP rows. Result: 58 rows (22 Expat, 15 National, 4 Syria, 17 Standard).
+Checked against the old derived ranges: G9-G24 matched the official Expat
+scale in 13 of 16 grades. The exceptions were G9 Sales & Distribution and
+G13 Warehouse (SAP keying errors) and the 3 Syria USD ranges. Position
+50219305's "odd" G14 range was exactly the **National** G14 range.
+`data.js`: `payScaleFor(e, currency)` routes an employee to Syria Project
+(`SYRIA_PROJECT_POSITIONS` by position number), then Standard (EGP), then
+National (`nationality === "Qatar"`), else Expat. `salaryBandFor(db, e,
+sal)` looks up (grade, jobFamily, currency, scale), then the "ALL" job
+family, then pre-migration "Standard" rows. So the new code works with the
+old data and is safe to merge before migration 31 and the upload. **Merge
+the code first**: old code with new data would collide the Expat and
+National "ALL" rows. This supersedes the earlier "exclude Qatari
+nationals" change (that PR was never merged). Qataris now sit on the
+National scale, and four G14 Qataris on 26,000 are still above the
+National G14 max of 24,760, which is genuine. Expected after upload:
+1,958 evaluated, 132 under / 1,794 within / 32 over, avg compa-ratio 0.93,
+pay gap index 101.7, 2026 Baladna Qatar joiners above midpoint 16.
+`build_salary_structure.ps1` (Position Data derivation, with its USD /
+excluded / system-error lists) now matters only for Egypt.
+
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
 `toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**
@@ -1316,6 +1348,11 @@ sync" feature notes for 27's reasoning.)
     sectioned-read policy to include `newhires` (Hires Above Mid % now
     compares total cash against the band). See "Salary bands compare TOTAL
     cash" above.
+31. `31_salary_structure_pay_scale.sql` — adds `salary_structure.pay_scale`
+    (Expat / National / Syria Project / Standard), re-keys the table on
+    `(grade, job_family, currency, pay_scale)` and clears it. Reload by
+    re-uploading "07 — Compensation Dashboard". See "Official pay scales"
+    above.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

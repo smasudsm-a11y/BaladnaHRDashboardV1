@@ -1,4 +1,4 @@
-import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryStructureLookup, bandComparablePay, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS, legalEntityAllowed, isCurrentlyEmployed } from "../data.js";
+import { sortedUnique, monthLabel, daysBetween, fmtInt, fmtPct, REFERENCE_TODAY, salaryBandFor, bandComparablePay, JOB_LEVEL_ORDER, LEADERSHIP_LEVELS, legalEntityAllowed, isCurrentlyEmployed } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, tableCard, legalEntityFilter, sectionTitle } from "../charts.js";
 
 export const meta = { id: "newhires", label: "New Hires & Onboarding", subtitle: "Who joined, how many stayed, and who is still on probation" };
@@ -69,7 +69,7 @@ export function render({ db, contentEl, filtersEl }) {
     const withBand = starters
       .map((e) => {
         const sal = db.latestBaseSalary.get(e.employeeId);
-        const struct = sal ? salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency) : null;
+        const struct = sal ? salaryBandFor(db, e, sal) : null;
         const pay = struct ? bandComparablePay(db, e.employeeId) : null;
         return pay !== null ? pay > struct.salaryMidpoint : null;
       })
