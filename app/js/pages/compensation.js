@@ -81,6 +81,8 @@ function buildRecords(db) {
     const rangePenetration = bandPay !== null ? ((bandPay - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null;
     out.push({
       employeeId,
+      employeeName: e.employeeName,
+      jobFamily: e.jobFamily,
       grade: sal.grade,
       gradeTier: struct ? struct.gradeTier : null,
       baseSalary: toQarEquivalent(sal.baseSalary, sal.currency),
@@ -185,14 +187,27 @@ export function render({ db, contentEl, filtersEl }) {
     const tierRows = rows.filter((r) => r.gradeTier);
     const staffByTier = TIER_ORDER.map((t) => avgBy(tierRows.filter((r) => r.gradeTier === t && r.workforceCategory === "Staff" && r.rangePenetration !== null), (r) => r.rangePenetration));
     const laborByTier = TIER_ORDER.map((t) => avgBy(tierRows.filter((r) => r.gradeTier === t && r.workforceCategory === "Labor" && r.rangePenetration !== null), (r) => r.rangePenetration));
+    // Each bar is an AVERAGE, so a bar below 0% doesn't mean everyone in it
+    // is below minimum (Executive/Staff read -6.2% with 64 of 184 below
+    // minimum and 117 within). The drilldown therefore filters by the
+    // clicked series (Staff/Labor) and shows each person's own position, so
+    // the list can't be mistaken for "everyone below minimum".
     const c6 = chartCard(grid, {
-      title: "Salary Positioning by Grade Tier", sub: "Avg range penetration %, Staff vs. Labor",
-      drilldown: { records: tierRows, matchField: "gradeTier", db },
+      title: "Salary Positioning by Grade Tier", sub: "Average range penetration, Staff vs. Labor · 0% = range minimum, 100% = maximum · click a bar for each person's position",
+      drilldown: {
+        records: tierRows.map((r) => ({ ...r, penetrationPct: r.rangePenetration === null ? null : Math.round(r.rangePenetration * 10) / 10 })),
+        matchField: "gradeTier", datasetField: "workforceCategory", db,
+        columns: [
+          { key: "employeeId", label: "Employee ID" }, { key: "employeeName", label: "Name" }, { key: "grade", label: "Grade" },
+          { key: "jobFamily", label: "Job Family" }, { key: "workforceCategory", label: "Category" },
+          { key: "positioning", label: "Position in Range" }, { key: "penetrationPct", label: "Range Penetration %" },
+        ],
+      },
     });
     barChart(c6, { labels: TIER_ORDER, datasets: [
       { label: "Staff", data: staffByTier.map((v) => Math.round(v * 10) / 10) },
       { label: "Labor", data: laborByTier.map((v) => Math.round(v * 10) / 10) },
-    ] });
+    ], valueSuffix: "%" });
   }
 
   draw();
