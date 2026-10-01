@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 $Scratch = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard Data\scripts\sap-migration"
-$OutDir = "C:\Users\S8D2B~1.MAS\AppData\Local\Temp\claude\C--Users-s-masud-OneDrive---BALADNA-Documents-Synthetic-HR-Dashboard-Data\2b72512b-8e31-42ca-857f-0c3136384a07\scratchpad\workbooks"
+$OutDir = Join-Path $Scratch "workbooks"  # was an old session's temp folder
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $excel = New-Object -ComObject Excel.Application
@@ -142,7 +142,7 @@ NewWorkbook @(
             "housing_allowance","Housing Allowance","transport_allowance","Transport Allowance",
             "education_allowance","Education Allowance","other_allowances","Other Allowances",
             "variable_pay","Variable Pay","bonus","Bonus","incentive","Incentive",
-            "total_cash_compensation","Total Cash Compensation","total_remuneration","Total Remuneration"
+            "total_cash_compensation","Total Cash Compensation","total_remuneration","Total Remuneration","social_allowance","Social Allowance"
         )
     },
     @{
@@ -150,7 +150,7 @@ NewWorkbook @(
         fields = OD @(
             "grade","Grade","job_family","Job Family","currency","Currency",
             "salary_range_min","Salary Range Minimum","salary_midpoint","Salary Midpoint",
-            "salary_range_max","Salary Range Maximum","grade_tier","Grade Tier"
+            "salary_range_max","Salary Range Maximum","grade_tier","Grade Tier","pay_scale","Pay Scale"
         )
     }
 ) "07_Compensation_Dashboard.xlsx"

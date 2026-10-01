@@ -77,7 +77,7 @@ $h = $ml.headers; $data = $ml.data
 $bsRows = New-Object System.Collections.Generic.List[string]
 $bsRows.Add((@("employee_id","grade","position","base_salary","currency","salary_effective_date") | ForEach-Object { CsvEscape $_ }) -join ",")
 $trRows = New-Object System.Collections.Generic.List[string]
-$trRows.Add((@("employee_id","salary_effective_date","housing_allowance","transport_allowance","education_allowance","other_allowances","variable_pay","bonus","incentive","total_cash_compensation","total_remuneration") | ForEach-Object { CsvEscape $_ }) -join ",")
+$trRows.Add((@("employee_id","salary_effective_date","housing_allowance","transport_allowance","education_allowance","other_allowances","variable_pay","bonus","incentive","total_cash_compensation","total_remuneration","social_allowance") | ForEach-Object { CsvEscape $_ }) -join ",")
 
 $countBasicBlank = 0
 $countCurSalBlank = 0
@@ -127,7 +127,11 @@ for ($r = 4; $r -le $ml.rows; $r++) {
         (ToNumStr $bonus),
         (ToNumStr $incentive),
         $curSal,
-        (ToNumStr $totalRem)
+        (ToNumStr $totalRem),
+        # Also inside other_allowances (totals unchanged); broken out on its
+        # own because the Qatari National pay scale excludes it -- see
+        # bandComparablePay in app/js/data.js and 32_total_rewards_social_allowance.sql.
+        (ToNumStr $social)
     )
     $trRows.Add(($trRow | ForEach-Object { CsvEscape $_ }) -join ",")
 }

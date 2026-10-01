@@ -310,6 +310,88 @@ hires and exits after the extract date aren't reflected until the next
 refresh. New Hires "Now" as of 2026-10-01: 102 on probation, 10 ending
 ≤30 days, 55 ≤90 days. 2025 12-mo retention 79.4% (of 218).
 
+### Salary ranges: where they come from, and the Syria-project USD fix (2026-10-01)
+
+There is **no official pay-scale table** in the SAP batch. `salary_structure`
+is derived by `scripts/sap-migration/build_salary_structure.ps1` from Position
+Data's per-position `Sal. Min/Mid/Max`. It groups positions by (grade, job
+family, currency) and takes the most common range, logging conflicts to
+`salary_structure_ambiguous_*.csv`. Currency is inferred from country
+(Qatar=QAR, Egypt=EGP); Position Data's own `Currency` column says QAR for
+every Qatar position, even wrong ones. So a single mis-keyed position can
+define a whole (grade, job family) range.
+**Syria-project positions carry USD ranges labelled QAR** (user-confirmed):
+50203780 (G13 Project Delivery), 50213777 (G17 Business Development),
+50192214 (G18 Project Delivery) and 50200332 (G20 Management), all Group
+Finance / division Q.P.S.C. Detected because their mids sat at ~0.27-0.32×
+their grade's typical mid (1/3.64 = 0.275). The builder's
+`$UsdRangePositions` list converts them at `$QarPerUsd = 3.64` before
+grouping; ties now prefer native-QAR ranges over converted ones. That
+resolved the long-standing G18 PROJECT DELIVERY "1 vs 1" tie (it was
+USD vs QAR) to the standard 36,200 mid. These employees' **pay** is
+recorded in QAR, so only ranges convert. Effect: 4 Group Finance employees
+moved off "Overpaid" (2 to Within, 2 to Underpaid). Company-wide
+under/within/over went from 129/1,791/38 to 131/1,793/34.
+**41201410 excluded** (user-confirmed: a consultant role, GCEO Office,
+G17 Special Designation, mid 1,130). It's in the builder's
+`$ExcludedPositions`. As the only position in that group, excluding it
+removed the band (182 ranges), so its holder no longer appears in any
+band-based figure.
+**50195364 (G12 Sales) and 50189486 (G6 Maintenance)** are user-confirmed
+SAP system errors. They're in `$SystemErrorRangePositions`: their recorded
+ranges are ignored, so they take the standard Qatar range for their grade
++ job family. They were already outvoted 7:1 and 18:1, so the output is
+unchanged; the list guards future refreshes.
+**50219305 (G14 QA/QC, 19,810-24,760): NOT a Qatari-national scale.** That
+was an earlier guess; the user corrected it on 2026-10-01 to "expat scale".
+Open question at the time of writing: whether that means this position's
+range is an expat scale, or that Position Data's ranges in general are the
+expat scale, with Qatari nationals on a separate scale that isn't in the
+data. The latter would explain the two Qatari G14 hires paid 26,000 against
+an 11,800 mid. Don't re-assume either. Long-term fix: load the
+official pay-scale matrix instead of deriving it from positions.
+`build_workbooks.ps1` now writes to `sap-migration/workbooks/` (it pointed
+at an old temp folder).
+
+### Official pay scales replace derived Qatar ranges (2026-10-01)
+
+Total Rewards supplied Baladna Qatar's **official Expat scale** (G2-G7,
+G9-G24; G8 deliberately has no range) and **Qatari National scale**
+(G10-G24). Both are by grade only, and transcribed into
+`scripts/sap-migration/build_official_salary_structure.ps1`. That script
+writes `salary_structure_draft.csv`: Expat/National rows with
+`job_family = "ALL"`; 4 "Syria Project" rows (the USD ranges converted at
+3.64, per grade + job family, kept by user decision); and Egypt's
+Position-Data-derived EGP rows as "Standard" (no official Egypt scale
+yet). **Run `build_salary_structure.ps1` first**, because it produces the
+EGP rows. Result: 58 rows (22 Expat, 15 National, 4 Syria, 17 Standard).
+Checked against the old derived ranges: G9-G24 matched the official Expat
+scale in 13 of 16 grades. The exceptions were G9 Sales & Distribution and
+G13 Warehouse (SAP keying errors) and the 3 Syria USD ranges. Position
+50219305's "odd" G14 range was exactly the **National** G14 range.
+`data.js`: `payScaleFor(e, currency)` routes an employee to Syria Project
+(`SYRIA_PROJECT_POSITIONS` by position number), then Standard (EGP), then
+National (`nationality === "Qatar"`), else Expat. `salaryBandFor(db, e,
+sal)` looks up (grade, jobFamily, currency, scale), then the "ALL" job
+family, then pre-migration "Standard" rows. So the new code works with the
+old data and is safe to merge before migration 31 and the upload. **Merge
+the code first**: old code with new data would collide the Expat and
+National "ALL" rows. This supersedes the earlier "exclude Qatari
+nationals" change (that PR was never merged). Qataris now sit on the
+National scale. **The National scale excludes the Qatari social
+allowance** (user-confirmed). Its actual SAP amount (Master List "Social
+Allowance", 4,000 or 6,000, only Qataris receive it) is now its own
+`total_rewards.social_allowance` column (migration 32; still also inside
+`other_allowances`, so no totals change), and `bandComparablePay`
+subtracts it for anyone on the National scale. The user chose actual
+amounts over a flat 4,000: 4 of the 8 Qataris in the data get 6,000. With
+that, all 5 current Qataris are within range (compa 0.95-0.99). Expected
+after upload: 1,958 evaluated, 132 under / 1,798 within / 28 over, avg
+compa-ratio 0.92, pay gap index 101.1, 2026 Baladna Qatar joiners above
+midpoint 14.
+`build_salary_structure.ps1` (Position Data derivation, with its USD /
+excluded / system-error lists) now matters only for Egypt.
+
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
 `toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**
@@ -1273,6 +1355,14 @@ sync" feature notes for 27's reasoning.)
     sectioned-read policy to include `newhires` (Hires Above Mid % now
     compares total cash against the band). See "Salary bands compare TOTAL
     cash" above.
+31. `31_salary_structure_pay_scale.sql` — adds `salary_structure.pay_scale`
+    (Expat / National / Syria Project / Standard), re-keys the table on
+    `(grade, job_family, currency, pay_scale)` and clears it. Reload by
+    re-uploading "07 — Compensation Dashboard". See "Official pay scales"
+    above.
+32. `32_total_rewards_social_allowance.sql` — adds
+    `total_rewards.social_allowance` (Qatari social allowance, excluded
+    from National-scale band comparisons). Loaded by the same "07" upload.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

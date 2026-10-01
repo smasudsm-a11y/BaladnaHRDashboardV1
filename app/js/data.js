@@ -119,12 +119,12 @@ export async function loadAll(allowedIds) {
   // between pages instead of resetting like every other filter does.
   db.selectedLegalEntities = new Set(LEGAL_ENTITIES.map((le) => le.value));
 
-  // Keyed by (grade, jobFamily, currency) -- grade alone is ambiguous in the
-  // real SAP salary bands, and (grade, jobFamily) alone still collides
-  // across countries (see 25_salary_structure_composite_key.sql). Look up
-  // with salaryStructureLookup(db, grade, jobFamily, currency), not
-  // .get(grade) directly.
-  db.salaryStructureIndex = new Map(db.salaryStructure.map((s) => [`${s.grade}|${s.jobFamily}|${s.currency}`, s]));
+  // Keyed by (grade, jobFamily, currency, payScale) -- see
+  // 31_salary_structure_pay_scale.sql. Rows loaded before that migration have
+  // no payScale and count as "Standard", so the old per-job-family ranges keep
+  // working until the new Compensation workbook is uploaded. Look up with
+  // salaryBandFor(db, employee, salaryRow), not .get() directly.
+  db.salaryStructureIndex = new Map(db.salaryStructure.map((s) => [`${s.grade}|${s.jobFamily}|${s.currency}|${s.payScale || "Standard"}`, s]));
 
   db.costCenterIndex = new Map(db.costCenters.map((c) => [c.costCenter, c]));
 
@@ -172,16 +172,33 @@ export function emp(db, employeeId) {
   return db.employeeIndex.get(employeeId) || null;
 }
 
-// salary_structure's key is (grade, jobFamily, currency), not grade alone --
-// see 25_salary_structure_composite_key.sql. currency comes from the
-// employee's own base_salary row (sal.currency), not employee_master --
-// (Grade, Job Family) alone still collides across countries (Qatar/QAR vs.
-// Egypt/EGP shared the same combo under two very different-scale bands).
-// jobFamily is null for any employee whose Position Number had no match in
-// Position Data (see the SAP migration notes), so this can legitimately
-// return null.
-export function salaryStructureLookup(db, grade, jobFamily, currency) {
-  return db.salaryStructureIndex.get(`${grade}|${jobFamily}|${currency}`) || null;
+// Which pay scale an employee is measured against (2026-10-01, from Total
+// Rewards' official scales):
+//   Syria Project -- the 4 Group Finance positions whose ranges are in USD
+//                    (converted at 3.64; their pay is recorded in QAR)
+//   National      -- Qatari nationals (official national scale, G10-G24)
+//   Standard      -- Egypt (EGP), still derived from SAP Position Data
+//   Expat         -- everyone else in Qatar (official expat scale)
+export const SYRIA_PROJECT_POSITIONS = ["50203780", "50213777", "50192214", "50200332"];
+export function payScaleFor(e, currency) {
+  if (e && SYRIA_PROJECT_POSITIONS.includes(String(e.positionId))) return "Syria Project";
+  if (currency === "EGP") return "Standard";
+  if (e && e.nationality === "Qatar") return "National";
+  return "Expat";
+}
+
+// The salary band an employee is compared against. `sal` is their
+// base_salary row (grade + currency). The official Qatar scales are by
+// grade only (job family "ALL"); Syria Project and Egypt are by grade + job
+// family. Falls back to the pre-migration "Standard" per-job-family rows
+// while those are still the ones loaded. Returns null when there's no band
+// -- e.g. Expat G8 (no range defined), or a Qatari national below G10.
+export function salaryBandFor(db, e, sal) {
+  if (!sal) return null;
+  const scale = payScaleFor(e, sal.currency);
+  const jf = e?.jobFamily;
+  const get = (s, family) => db.salaryStructureIndex.get(`${sal.grade}|${family}|${sal.currency}|${s}`);
+  return get(scale, jf) || get(scale, "ALL") || get("Standard", jf) || null;
 }
 
 // The pay figure to compare against a salary_structure band (compa-ratio,
@@ -194,9 +211,20 @@ export function salaryStructureLookup(db, grade, jobFamily, currency) {
 // toQarEquivalent only when summing across employees. Returns null (excluded
 // from band analysis, never silently swapped for basic) when the employee
 // has no total_rewards row.
+//
+// For employees on the Qatari National scale, the social allowance is taken
+// off first: that scale excludes it (user-confirmed 2026-10-01). It's the
+// actual SAP amount (4,000 or 6,000), from total_rewards.social_allowance;
+// 0 until that column is loaded. Example: a G14 national on 26,000 total cash
+// with 4,000 social compares 22,000 against the 19,810-24,760 band.
 export function bandComparablePay(db, employeeId) {
   const tr = db.latestTotalRewards.get(employeeId);
-  const pay = tr ? Number(tr.totalCashCompensation) : NaN;
+  let pay = tr ? Number(tr.totalCashCompensation) : NaN;
+  if (pay > 0) {
+    const e = db.employeeIndex?.get(employeeId);
+    const sal = db.latestBaseSalary?.get(employeeId);
+    if (payScaleFor(e, sal?.currency) === "National") pay -= Number(tr.socialAllowance) || 0;
+  }
   return pay > 0 ? pay : null;
 }
 
