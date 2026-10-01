@@ -21,6 +21,49 @@ function positioningBucket(rangePenetration) {
   return "Overpaid";
 }
 
+// Gender Pay Gap Index, compa-ratio based (user's call, 2026-10-01; final
+// of three versions the same day). History, so it isn't re-litigated:
+// 1. Raw female avg / male avg basic read ~176 -- pure workforce mix (~55
+//    women, nearly all Staff, vs ~1,577 Labor men on ~1,700 QAR basic).
+// 2. Grade-matched basic read 106.8, but Baladna's pay ranges are keyed on
+//    grade AND job family, and within a grade women sit in HR/Sales/Admin
+//    while men sit in QA/QC/Production/Maintenance -- different ranges.
+// 3. This version: each person's compa-ratio (total cash vs THEIR OWN
+//    grade + job-family range midpoint -- see bandComparablePay), so the
+//    comparison follows the pay policy exactly. Women's avg / men's avg,
+//    computed within each workforce category (Staff vs Staff, Labor vs
+//    Labor -- Labor sits lower in its ranges and is almost all men), then
+//    weighted by women per category. A category needs MIN_PER_GENDER of
+//    each gender to count.
+// Verified against tenure: Staff women and men with the same tenure sit
+// within ~0.02 of each other (<2 yrs 0.99 vs 1.01, 5+ yrs 0.92 vs 0.91).
+// What remains is salary compression (new hires ~1.00, 5+ yrs ~0.91), and
+// recent hires are disproportionately women.
+const MIN_PER_GENDER = 3;
+function compaGap(rows) {
+  const groups = new Map();
+  let totalWomen = 0;
+  for (const r of rows) {
+    if (r.gender === "Female") totalWomen += 1;
+    if (r.compaRatio === null || (r.gender !== "Male" && r.gender !== "Female")) continue;
+    const key = r.workforceCategory || "Unclassified";
+    if (!groups.has(key)) groups.set(key, { Male: [], Female: [] });
+    groups.get(key)[r.gender].push(r.compaRatio);
+  }
+  const avg = (a) => a.reduce((s, v) => s + v, 0) / a.length;
+  let weighted = 0, women = 0, wSum = 0, mSum = 0;
+  for (const g of groups.values()) {
+    if (g.Female.length < MIN_PER_GENDER || g.Male.length < MIN_PER_GENDER) continue;
+    weighted += (avg(g.Female) / avg(g.Male)) * g.Female.length;
+    wSum += avg(g.Female) * g.Female.length;
+    mSum += avg(g.Male) * g.Female.length;
+    women += g.Female.length;
+  }
+  return women
+    ? { index: (weighted / women) * 100, women, totalWomen, femaleCompa: wSum / women, maleCompa: mSum / women }
+    : { index: null, women: 0, totalWomen };
+}
+
 function buildRecords(db) {
   const out = [];
   for (const [employeeId, sal] of db.latestBaseSalary) {
@@ -71,11 +114,7 @@ export function render({ db, contentEl, filtersEl }) {
     const avgCTC = avgBy(rows, (r) => r.totalCash || 0);
     const avgCompa = avgBy(rows.filter((r) => r.compaRatio !== null), (r) => r.compaRatio);
     const avgPenetration = avgBy(rows.filter((r) => r.rangePenetration !== null), (r) => r.rangePenetration);
-    const male = rows.filter((r) => r.gender === "Male");
-    const female = rows.filter((r) => r.gender === "Female");
-    const avgMale = avgBy(male, (r) => r.baseSalary);
-    const avgFemale = avgBy(female, (r) => r.baseSalary);
-    const payGapIndex = avgMale ? (avgFemale / avgMale) * 100 : 0;
+    const gap = compaGap(rows);
     const totalCost = rows.reduce((s, r) => s + (r.totalRem || 0), 0);
     const outsideRange = rows.filter((r) => r.positioning === "Underpaid" || r.positioning === "Overpaid").length;
 
@@ -86,9 +125,11 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. grade midpoint (1.00 = at mid)" });
     kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration), note: "total cash within grade range" });
     kpiCard(kpiRow, {
-      label: "Gender Pay Gap Index", value: fmtDec(payGapIndex, 1),
-      note: `Female avg ${fmtMoney(avgFemale)} vs Male avg ${fmtMoney(avgMale)}`,
-      deltaKind: payGapIndex < 95 ? "bad" : payGapIndex < 100 ? "warn" : "good",
+      label: "Gender Pay Gap Index", value: gap.index === null ? "n/a" : fmtDec(gap.index, 1),
+      note: gap.index === null
+        ? `too few women and men with a pay range to compare (min ${MIN_PER_GENDER} each)`
+        : `position in own pay range, 100 = parity · women ${fmtDec(gap.femaleCompa, 2)} vs men ${fmtDec(gap.maleCompa, 2)} compa-ratio · ${fmtInt(gap.women)} of ${fmtInt(gap.totalWomen)} women`,
+      deltaKind: gap.index === null ? undefined : gap.index < 95 ? "bad" : gap.index < 100 ? "warn" : "good",
     });
     kpiCard(kpiRow, { label: "Monthly Compensation Cost", value: fmtMoney(totalCost), note: "sum of total remuneration" });
     kpiCard(kpiRow, { label: "Outside Salary Range", value: fmtPct(rows.length ? (outsideRange / rows.length) * 100 : 0), note: `${fmtInt(outsideRange)} underpaid or overpaid` });
@@ -112,22 +153,28 @@ export function render({ db, contentEl, filtersEl }) {
     // Entity" to one bar) — same convention as every other breakdown chart in the app.
     const levelFiltered = records.filter((r) => level === "All" || r.jobLevel === level);
     const leOrder = sortedUnique(records, (r) => r.legalEntity).sort();
-    const gapByLe = leOrder.map((l) => {
-      const m = avgBy(levelFiltered.filter((r) => r.legalEntity === l && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(levelFiltered.filter((r) => r.legalEntity === l && r.gender === "Female"), (r) => r.baseSalary);
-      return m ? (f / m) * 100 : 0;
-    });
-    const c3 = chartCard(grid, { title: "Pay Gap Index by Legal Entity", sub: "Female avg base salary as % of male avg (100 = parity)", drilldown: { records: levelFiltered, matchField: "legalEntity", db } });
-    barChart(c3, { labels: leOrder, datasets: [{ label: "Pay Gap Index", data: gapByLe.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+    // Groups where no workforce category meets the minimum are left off the
+    // chart (and named in the subtitle) rather than drawn as a misleading 0.
+    const gapChart = (groupLabels, rowsFor) => {
+      const shown = [], skipped = [];
+      for (const label of groupLabels) {
+        const g = compaGap(rowsFor(label));
+        if (g.totalWomen === 0) continue; // no women at all -- nothing to compare, not worth naming
+        if (g.index === null) skipped.push(label);
+        else shown.push([`${label} (${g.women}F)`, label, Math.round(g.index * 10) / 10]);
+      }
+      return { shown, skipped };
+    };
+    const gapSub = (skipped) => `Women's vs men's position in their own pay range (compa-ratio, 100 = parity)${skipped.length ? ` · too few to compare: ${skipped.join(", ")}` : ""}`;
+
+    const byLe = gapChart(leOrder, (l) => levelFiltered.filter((r) => r.legalEntity === l));
+    const c3 = chartCard(grid, { title: "Pay Gap Index by Legal Entity", sub: gapSub(byLe.skipped), drilldown: { records: levelFiltered, matchFn: (r, label) => label.startsWith(`${r.legalEntity} (`), db } });
+    barChart(c3, { labels: byLe.shown.map((s) => s[0]), datasets: [{ label: "Pay Gap Index", data: byLe.shown.map((s) => s[2]) }], showLegend: false });
 
     const leFiltered = records.filter((r) => legalEntityAllowed(db, r.legalEntity));
-    const gapByLevel = levels.slice(1).map((l) => {
-      const m = avgBy(leFiltered.filter((r) => r.jobLevel === l && r.gender === "Male"), (r) => r.baseSalary);
-      const f = avgBy(leFiltered.filter((r) => r.jobLevel === l && r.gender === "Female"), (r) => r.baseSalary);
-      return m ? (f / m) * 100 : 0;
-    });
-    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", drilldown: { records: leFiltered, matchField: "jobLevel", db } });
-    barChart(c4, { labels: levels.slice(1), datasets: [{ label: "Pay Gap Index", data: gapByLevel.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+    const byLevel = gapChart(levels.slice(1), (l) => leFiltered.filter((r) => r.jobLevel === l));
+    const c4 = chartCard(grid, { title: "Pay Gap Index by Organisation Level", sub: gapSub(byLevel.skipped), drilldown: { records: leFiltered, matchFn: (r, label) => label.startsWith(`${r.jobLevel} (`), db } });
+    barChart(c4, { labels: byLevel.shown.map((s) => s[0]), datasets: [{ label: "Pay Gap Index", data: byLevel.shown.map((s) => s[2]) }], showLegend: false });
 
     const bucketCounts = BUCKET_ORDER.map((b) => rows.filter((r) => r.positioning === b).length);
     const c5 = chartCard(grid, { title: "Salary Positioning by Quartile", sub: "Where total monthly cash sits within its grade's range", drilldown: { records: rows, matchField: "positioning", db } });

@@ -279,6 +279,27 @@ the index reads ~176. That's still >100, but it's because of workforce mix,
 not a bug: only ~55 women are currently employed, mostly white-collar
 Staff, against ~1,577 mostly Labor men on ~1,700 QAR basic. The raw index
 doesn't compare like-for-like roles.
+**Final method: compa-ratio based (same day, after two intermediate
+versions; the user asked why women out-earned men under a grade-and-range
+pay policy).** A grade-matched basic-pay index read 106.8, but pay ranges
+are keyed on grade **and job family**. Within a grade, women sit in
+HR/Sales/Admin and men in QA/QC/Production/Maintenance, which have
+different ranges (grade + job family matching gave 92.9, but on only 8
+women). `compensation.js`'s `compaGap()` therefore compares each person's
+compa-ratio (total cash ÷ their own grade + job-family range midpoint).
+It takes women's avg ÷ men's avg within each workforce category (Labor
+sits lower in its ranges and is almost all men), weighted by women per
+category, with a minimum of 3 of each gender. The by-Legal-Entity/by-Level
+charts use the same function, drop groups with too few people (named in
+the subtitle), and label bars with the women count.
+Expected company-wide: **102.6** (women 0.95 vs men 0.92, 54 of 55 women).
+By entity: Food Industries 104.4, Egypt 98.9. By level: Executive 111.0,
+Senior 103.1, Specialist/Supervisor 99.7, Managerial 91.5 (7F).
+**Tenure check**: Staff women and men with the same tenure are within
+~0.02 compa of each other. The residual comes from salary compression (new
+hires ~1.00, 5+ yrs ~0.91), and recent hires skew female (30 of 51 Staff
+women joined in the last 2 years). Worth raising with Total Rewards as its
+own issue.
 
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
