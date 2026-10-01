@@ -327,57 +327,6 @@ const UPLOAD_UNITS = [
     ],
   },
   {
-    id: "enps", fileLabel: "18 — Employee Satisfaction",
-    sheets: [
-      {
-        // Delete+insert, not upserted — a point-in-time roster snapshot
-        // (see 21_enps.sql), same reasoning as Succession Planning/
-        // Probation & PIP.
-        sheetName: "Exit Surveys Data", table: "exit_surveys", dateFields: ["survey_date"],
-        fields: {
-          "Employee ID": "employee_id", "Survey Date": "survey_date", "eNPS Score": "enps_score",
-          "eNPS Category": "enps_category", "Would Recommend": "would_recommend",
-        },
-      },
-      {
-        sheetName: "Stage Gate Scores Data", table: "stage_gate_scores", dateFields: ["score_date"],
-        fields: {
-          "Employee ID": "employee_id", "Stage": "stage", "Score": "score", "Score Date": "score_date",
-        },
-      },
-    ],
-  },
-  {
-    id: "headcount_forecast", fileLabel: "19 — Headcount Forecast",
-    sheets: [{
-      // Upserted by (period, division), not delete+insert — a rolling
-      // forecast that gets regenerated periodically should only touch the
-      // periods/divisions in that upload (see 22_headcount_forecast.sql),
-      // same reasoning as payroll's (employee_id, period) key. No "Actual"
-      // sheet here — Actual headcount is computed live from
-      // employee_master, same as headcount.js's own trend chart.
-      sheetName: "Headcount Forecast Data", table: "headcount_forecast", dateFields: ["period"],
-      upsertKey: "period,division",
-      fields: {
-        "Period": "period", "Division": "division", "Forecast Headcount": "forecast_headcount",
-        "Lower Bound": "lower_bound", "Upper Bound": "upper_bound",
-      },
-    }],
-  },
-  {
-    id: "initiatives", fileLabel: "20 — Initiatives",
-    sheets: [{
-      // Small tracker table (see 23_phase_l.sql) — upserted by name, same
-      // reasoning as kpi_targets/budgeted_positions. No source Database/*.xlsx
-      // workbook exists for this one either (seeded directly by the
-      // migration's INSERT); this card exists so initiatives can be revised
-      // without a new SQL migration.
-      sheetName: "Initiatives Data", table: "initiatives", dateFields: [],
-      upsertKey: "name",
-      fields: { "Name": "name", "Status": "status" },
-    }],
-  },
-  {
     id: "employee_benefits", fileLabel: "21 — Employee Benefits",
     sheets: [{
       // Real SAP Job Info benefits data (see 28_employee_benefits.sql) — a
