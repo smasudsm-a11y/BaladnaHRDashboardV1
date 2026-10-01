@@ -1643,6 +1643,15 @@ locally → verify on Render.
   the design. `setPageContext()` resets the conversation history on every
   page change (Zee shouldn't carry Compensation-page context into a
   Payroll-page conversation).
+  **Fixed 2026-10-01**: the context used to be snapshotted once in
+  `setPageContext()`, at route time. Filters redraw the page without a
+  route change, so Zee kept answering from the unfiltered numbers (the user
+  filtered to Baladna Qatar and got all-3-entity figures). `zee.js` now
+  keeps a reference to the content element and rebuilds the context inside
+  `sendQuestion()`. It also prepends the current filter selections
+  (`describeFilters()`: the Legal Entity dropdown summary plus every
+  filter `<select>`). Still DOM-only, so the access-control design above is
+  unchanged.
   Requires one manual, one-time setup step outside this repo: create the
   function via the Supabase Dashboard's Edge Functions editor (no Supabase
   CLI on this machine) and set the `ANTHROPIC_API_KEY` secret there — the
