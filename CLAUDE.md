@@ -829,6 +829,16 @@ later phases depend on earlier ones' tables existing.
   Initiatives table on Executive Insights, `initiatives` from `data.js`'s
   TABLES/SECTION_TABLES, and the "20 — Initiatives" Data Refresh card. The
   Supabase table and its policies were left in place, unused.
+  **Also removed the same day, same reason:** the **Employee Satisfaction /
+  eNPS** module (Phase J: `enps.js`, its nav group, the "18 — Employee
+  Satisfaction" card, plus Executive's Employee Lifecycle Score KPI that
+  read `stage_gate_scores`) and the **Headcount Forecast** module (Phase K:
+  `headcount-forecast.js`, its nav group, the "19 — Headcount Forecast"
+  card). Their Supabase tables (`exit_surveys`, `stage_gate_scores`,
+  `headcount_forecast`) and policies remain, unused. Old `enps` /
+  `headcount-forecast` entries in `user_access.sections` are harmless,
+  since nothing grants or reads them now. The Phase J/K write-ups and
+  gotchas above are historical.
 
 ## Tech stack & constraints
 

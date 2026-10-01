@@ -27,9 +27,6 @@ const TABLES = {
   kpiTargets: "kpi_targets",
   probationReviews: "probation_reviews",
   pipRecords: "pip_records",
-  exitSurveys: "exit_surveys",
-  stageGateScores: "stage_gate_scores",
-  headcountForecast: "headcount_forecast",
   employeeBenefits: "employee_benefits",
   promotionHistory: "promotion_history",
 };
@@ -40,7 +37,7 @@ const TABLES = {
 // user has no section access to — RLS would return them empty anyway, but there's
 // no reason to pay for the round trip.
 const SECTION_TABLES = {
-  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets", "critical_positions", "successors", "stage_gate_scores"],
+  exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets", "critical_positions", "successors"],
   headcount: ["employee_master", "org_hierarchy"],
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
   newhires: ["employee_master", "base_salary", "total_rewards", "salary_structure"],
@@ -58,8 +55,6 @@ const SECTION_TABLES = {
   payroll: ["payroll", "employee_master", "base_salary"],
   succession: ["critical_positions", "incumbents", "successors", "employee_master"],
   "probation-pip": ["probation_reviews", "pip_records", "employee_master"],
-  enps: ["exit_surveys", "stage_gate_scores", "employee_master"],
-  "headcount-forecast": ["headcount_forecast", "employee_master"],
   promotions: ["promotion_history", "employee_master"],
 };
 
@@ -369,8 +364,7 @@ export const LEADERSHIP_LEVELS = ["Specialist/Supervisor", "Managerial", "Direct
 // was synthetic; switched to the real current date on 2026-10-01 at the
 // user's request, now that the data is real SAP. Local date (the browser's
 // timezone -- Asia/Qatar for users here), as YYYY-MM-DD, evaluated once at
-// page load. headcount-forecast.js deliberately anchors to its stored
-// forecast's own baseline instead -- see that file.
+// page load.
 function localIsoDate(d) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }

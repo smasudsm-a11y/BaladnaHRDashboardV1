@@ -1,10 +1,11 @@
-import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtDec, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
+import { lastNMonths, monthEnd, monthLabel, isActiveAsOf, isCurrentlyEmployed, fmtInt, fmtPct, fmtMoney, targetDelta, REFERENCE_TODAY, toQarEquivalent, LEADERSHIP_LEVELS, legalEntityAllowed, employeeLegalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, lineChart, barChart, doughnutChart, noteBanner, legalEntityFilter } from "../charts.js";
 
 // dataStatus: "partial" -- this page rolls up attrition/leave/base_salary
 // (real, from the SAP batch) alongside absenteeism (no source),
-// Succession Coverage % (needs `successors`, no source), and Employee
-// Lifecycle Score (needs `stage_gate_scores`, synthetic by design).
+// and Succession Coverage % (needs `successors`, no source). The Employee
+// Lifecycle Score KPI was removed 2026-10-01 along with the Employee
+// Satisfaction module it came from.
 export const meta = { id: "exec", label: "Executive Insights", subtitle: "Leadership at-a-glance across the employee lifecycle", dataStatus: "partial" };
 
 export function render({ db, contentEl, filtersEl }) {
@@ -27,7 +28,6 @@ export function render({ db, contentEl, filtersEl }) {
     const criticalPositions = db.criticalPositions;
     const criticalPositionIds = new Set(criticalPositions.map((p) => p.positionId));
     const successors = db.successors.filter((s) => criticalPositionIds.has(s.positionId));
-    const stageGateScores = db.stageGateScores.filter((r) => employeeLegalEntityAllowed(db, r.employeeId));
     const months = lastNMonths(12);
 
     // Headcount / FTE
@@ -80,10 +80,6 @@ export function render({ db, contentEl, filtersEl }) {
     const positionsWithSuccessor = new Set(successors.map((s) => s.positionId)).size;
     const successionCoveragePct = criticalPositions.length ? (positionsWithSuccessor / criticalPositions.length) * 100 : 0;
 
-    // Employee Lifecycle Score (Phase L rollup) — same avg-across-4-stages
-    // definition as enps.js's own KPI.
-    const lifecycleScore = stageGateScores.length ? stageGateScores.reduce((s, r) => s + (r.score || 0), 0) / stageGateScores.length : 0;
-
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
@@ -105,8 +101,6 @@ export function render({ db, contentEl, filtersEl }) {
     kpiCard(kpiRow, { label: "Avg Absence Hours / Employee (TTM)", value: fmtInt(avgAbsenceHours), note: `${fmtInt(absTTM.length)} logged absence events` });
     kpiCard(kpiRow, { label: "Est. Annual Leave Liability", value: fmtMoney(leaveLiability), note: "Unused Annual balance × est. daily rate" });
     kpiCard(kpiRow, { label: "Succession Coverage", value: fmtPct(successionCoveragePct), note: `${positionsWithSuccessor} of ${criticalPositions.length} critical roles` });
-    kpiCard(kpiRow, { label: "Employee Lifecycle Score", value: fmtDec(lifecycleScore, 1), note: "avg across Interview → Probation stages" });
-
     noteBanner(contentEl, `<b>Scope note:</b> this covers the 10 Phase-1 data-backed modules from the PRD. Executive Insights below summarizes headcount, hiring, attrition, and leave/absence trends over the trailing 12 months (reference date ${REFERENCE_TODAY}).`);
 
     const grid = document.createElement("div");
