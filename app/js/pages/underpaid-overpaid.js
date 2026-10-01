@@ -24,6 +24,12 @@ const QUARTILE_BUCKETS = ["Underpaid", "1st Quartile", "2nd Quartile", "3rd Quar
 // Within collapses all 4 quartile buckets into one category.
 const CATEGORY_ORDER = ["Within", "Underpaid", "Overpaid"];
 
+// Excluded at user request (2026-10-01): interns are on stipends and
+// consultants aren't paid on the grade structure, so comparing either with a
+// salary band is meaningless. All 8 in the data (7 interns, 1 consultant)
+// were landing in "Underpaid".
+const EXCLUDED_WORKFORCE = ["Internship", "Consultant"];
+
 function severityBand(pct) {
   if (pct < 10) return "0–9%";
   if (pct < 20) return "10–19%";
@@ -46,6 +52,7 @@ function buildRecords(db) {
   for (const [employeeId, sal] of db.latestBaseSalary) {
     const e = db.employeeIndex.get(employeeId);
     if (!e || !isCurrentlyEmployed(e)) continue;
+    if (EXCLUDED_WORKFORCE.includes(e.workforceCategory)) continue;
     const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
     if (!struct) continue;
     // Total monthly cash, not basic -- the SAP bands are defined on total
@@ -103,7 +110,7 @@ export function render({ db, contentEl, filtersEl }) {
     const kpiRow = document.createElement("div");
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
-    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length) });
+    kpiCard(kpiRow, { label: "Employees Evaluated", value: fmtInt(rows.length), note: "Staff and Labor only; interns and consultants excluded" });
     kpiCard(kpiRow, { label: "Underpaid Employees", value: fmtInt(underpaid.length), note: `${fmtPct(rows.length ? (underpaid.length / rows.length) * 100 : 0)} of evaluated` });
     kpiCard(kpiRow, { label: "Difference from Min Salary", value: fmtMoney(underpaidTotal), note: "total shortfall vs. grade minimum" });
     kpiCard(kpiRow, { label: "Overpaid Employees", value: fmtInt(overpaid.length), note: `${fmtPct(rows.length ? (overpaid.length / rows.length) * 100 : 0)} of evaluated` });
