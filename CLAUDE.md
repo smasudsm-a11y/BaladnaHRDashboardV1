@@ -275,6 +275,23 @@ Food Industries: 20 of its 22 (grade, job family) combos are identical,
 the shared group ranges. This is a finding for Total Rewards, not a data
 fix.
 
+### New Hires & Onboarding — rebuilt for real data (2026-10-01)
+
+User: the page "doesn't make sense". Causes: (1) Hire Year defaulted to
+"All", so "New Starters" = all 3,148 employees back to 2012 and the trend
+had 154 bars. (2) **The SAP extract only holds people who left from
+2022-01-02 on**, so every pre-2022 hire year showed a false 100% retention
+and an understated hire count. (3) There was no onboarding content.
+`newhires.js` now offers hire years ≥ `TRUSTED_FROM_YEAR` (2022) only and
+defaults to the last complete year. It adds "Left During Probation"
+(terminated before `confirmation_date`, which is hire + 180 days for
+~3,000 of 3,148). It also has a "Probation & Onboarding — Now" section
+(on probation now, ending ≤30/≤90 days, end dates by month, by department,
+and a collapsible list), which respects entity/department but not
+year/month. Expected (2025, all entities): 297 starters, 19 women,
+6-mo retention 87.9%, 12-mo 78.6% (of 168), 11.1% left during probation.
+Now: 97 on probation, 7 ending ≤30 days, 33 ≤90 days.
+
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
 `toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**
