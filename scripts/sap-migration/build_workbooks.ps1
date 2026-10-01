@@ -1,6 +1,6 @@
-$ErrorActionPreference = "Stop"
+﻿$ErrorActionPreference = "Stop"
 $Scratch = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard Data\scripts\sap-migration"
-$OutDir = "C:\Users\S8D2B~1.MAS\AppData\Local\Temp\claude\C--Users-s-masud-OneDrive---BALADNA-Documents-Synthetic-HR-Dashboard-Data\2b72512b-8e31-42ca-857f-0c3136384a07\scratchpad\workbooks"
+$OutDir = Join-Path $Scratch "workbooks"  # was an old session's temp folder
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 $excel = New-Object -ComObject Excel.Application

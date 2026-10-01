@@ -310,6 +310,36 @@ hires and exits after the extract date aren't reflected until the next
 refresh. New Hires "Now" as of 2026-10-01: 102 on probation, 10 ending
 ≤30 days, 55 ≤90 days. 2025 12-mo retention 79.4% (of 218).
 
+### Salary ranges: where they come from, and the Syria-project USD fix (2026-10-01)
+
+There is **no official pay-scale table** in the SAP batch. `salary_structure`
+is derived by `scripts/sap-migration/build_salary_structure.ps1` from Position
+Data's per-position `Sal. Min/Mid/Max`. It groups positions by (grade, job
+family, currency) and takes the most common range, logging conflicts to
+`salary_structure_ambiguous_*.csv`. Currency is inferred from country
+(Qatar=QAR, Egypt=EGP); Position Data's own `Currency` column says QAR for
+every Qatar position, even wrong ones. So a single mis-keyed position can
+define a whole (grade, job family) range.
+**Syria-project positions carry USD ranges labelled QAR** (user-confirmed):
+50203780 (G13 Project Delivery), 50213777 (G17 Business Development),
+50192214 (G18 Project Delivery) and 50200332 (G20 Management), all Group
+Finance / division Q.P.S.C. Detected because their mids sat at ~0.27-0.32×
+their grade's typical mid (1/3.64 = 0.275). The builder's
+`$UsdRangePositions` list converts them at `$QarPerUsd = 3.64` before
+grouping; ties now prefer native-QAR ranges over converted ones. That
+resolved the long-standing G18 PROJECT DELIVERY "1 vs 1" tie (it was
+USD vs QAR) to the standard 36,200 mid. These employees' **pay** is
+recorded in QAR, so only ranges convert. Effect: 4 Group Finance employees
+moved off "Overpaid" (2 to Within, 2 to Underpaid). Company-wide
+under/within/over went from 129/1,791/38 to 131/1,793/34.
+Still flagged for Total Rewards, not fixed: 41201410 (GCEO Office G17
+Special Designation, mid 1,130 = 4% of normal), 50195364 (Sales Retail G12,
+35%), 50189486 (Factory Engineering G6, 38%), and 50219305 (G14 QA/QC on
+19,810-24,760, possibly a Qatari-national scale). Long-term fix: load the
+official pay-scale matrix instead of deriving it from positions.
+`build_workbooks.ps1` now writes to `sap-migration/workbooks/` (it pointed
+at an old temp folder).
+
 ### EGP → QAR conversion was inverted (fixed 2026-10-01)
 
 `toQarEquivalent()` multiplied EGP by 17.717, but that rate is EGP **per**

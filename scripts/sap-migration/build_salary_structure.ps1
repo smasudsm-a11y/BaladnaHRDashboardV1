@@ -1,6 +1,19 @@
 $ErrorActionPreference = "Stop"
 $Dir = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard Data\HR Reports"
-$Scratch = "C:\Users\S8D2B~1.MAS\AppData\Local\Temp\claude\C--Users-s-masud-OneDrive---BALADNA-Documents-Synthetic-HR-Dashboard-Data\2b72512b-8e31-42ca-857f-0c3136384a07\scratchpad"
+# Output goes next to the other SAP drafts (was an old session's temp folder).
+# Writes salary_structure_rebuilt.csv -- compare it with
+# salary_structure_draft.csv before replacing the draft.
+$Scratch = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard Data\scripts\sap-migration"
+
+# Positions whose Sal. Min/Mid/Max are in US DOLLARS even though Position
+# Data labels them QAR -- Syria-project roles in Group Finance (division
+# Q.P.S.C). User-confirmed 2026-10-01. Their range read as QAR sat at ~27%
+# (1/3.64) of a normal range for the grade, which made their holders look
+# up to +258% above midpoint. Converted at the fixed QAR peg before grouping.
+# Pay for these employees is recorded in QAR, so only the ranges convert.
+# Add a position number here if Total Rewards confirms another USD range.
+$UsdRangePositions = @("50203780", "50213777", "50192214", "50200332")
+$QarPerUsd = 3.64
 
 function Norm($v) { if ($null -eq $v) { return "" }; return "$v".Trim() }
 function GradeToG($gradeLabel) {
@@ -49,6 +62,8 @@ $countryToCurrency = @{ "Qatar" = "QAR"; "Egypt" = "EGP" }
 
 # group (Currency, Grade, JobFamily) -> band -> count, Qatar+Egypt each keyed by their own currency
 $groups = @{}
+$usdConverted = 0
+$convertedBands = @{}
 for ($r = 4; $r -le $rows; $r++) {
     $country = Norm $data[$r, $h["Country (Label)"]]
     if (-not $countryToCurrency.ContainsKey($country)) { continue }
@@ -59,6 +74,12 @@ for ($r = 4; $r -le $rows; $r++) {
     $key = "$currency|$grade|$jf"
     $min = $data[$r, $h["Sal. Min"]]; $mid = $data[$r, $h["Sal. Mid"]]; $max = $data[$r, $h["Sal. Max"]]
     if ($null -eq $min -or "$min" -eq "") { continue }
+    $posNo = Norm $data[$r, $h["Position No."]]
+    if ($UsdRangePositions -contains $posNo) {
+        $min = [math]::Round([double]$min * $QarPerUsd); $mid = [math]::Round([double]$mid * $QarPerUsd); $max = [math]::Round([double]$max * $QarPerUsd)
+        $usdConverted++
+        $convertedBands["$min|$mid|$max"] = $true
+    }
     $band = "$min|$mid|$max"
     if (-not $groups.ContainsKey($key)) { $groups[$key] = @{} }
     if (-not $groups[$key].ContainsKey($band)) { $groups[$key][$band] = 0 }
@@ -72,10 +93,16 @@ foreach ($kv in $groups.GetEnumerator()) {
     $parts = $key -split '\|', 3
     $currency = $parts[0]; $grade = $parts[1]; $jf = $parts[2]
     $bands = $kv.Value
-    # pick the band with the most positions backing it (mode); ties broken by first-seen
+    # pick the band with the most positions backing it (mode). On a tie,
+    # prefer a band native to the currency over a USD-converted one (the
+    # Syria-project ranges run ~10-15% above the standard QAR scale -- e.g.
+    # G18 PROJECT DELIVERY: 1 USD position vs 1 standard position, whose
+    # 36,200 mid matches every other G18 job family); then first-seen.
     $bestBand = $null; $bestCount = -1
     foreach ($b in $bands.GetEnumerator()) {
-        if ($b.Value -gt $bestCount) { $bestCount = $b.Value; $bestBand = $b.Key }
+        $better = $b.Value -gt $bestCount -or
+            ($b.Value -eq $bestCount -and $convertedBands.ContainsKey($bestBand) -and -not $convertedBands.ContainsKey($b.Key))
+        if ($better) { $bestCount = $b.Value; $bestBand = $b.Key }
     }
     $bandParts = $bestBand -split '\|'
     $outRows.Add(@((GradeToG $grade), $jf, $currency, [double]$bandParts[0], [double]$bandParts[1], [double]$bandParts[2], (GradeTier $grade)))
@@ -84,9 +111,10 @@ foreach ($kv in $groups.GetEnumerator()) {
     }
 }
 
-WriteCsv (Join-Path $Scratch "salary_structure_new.csv") @("grade","job_family","currency","salary_range_min","salary_midpoint","salary_range_max","grade_tier") $outRows
-WriteCsv (Join-Path $Scratch "salary_structure_ambiguous_new.csv") @("currency","grade","job_family","all_bands_seen","resolution") $ambiguousRows
+WriteCsv (Join-Path $Scratch "salary_structure_rebuilt.csv") @("grade","job_family","currency","salary_range_min","salary_midpoint","salary_range_max","grade_tier") $outRows
+WriteCsv (Join-Path $Scratch "salary_structure_ambiguous_rebuilt.csv") @("currency","grade","job_family","all_bands_seen","resolution") $ambiguousRows
 
+Write-Host "USD ranges converted at $QarPerUsd QAR/USD: $usdConverted of $($UsdRangePositions.Count) listed positions"
 Write-Host "salary_structure rows: $($outRows.Count)"
 Write-Host "ambiguous combos (manual review): $($ambiguousRows.Count)"
 
