@@ -160,7 +160,11 @@ function tooltipConfig() {
   };
 }
 
-export function barChart(canvas, { labels, datasets, horizontal = false, stacked = false, showLegend = null }) {
+// valueSuffix (e.g. "%") is appended to tooltip values and value-axis ticks.
+// Without it a percentage chart's tooltip read like a headcount -- e.g.
+// "Underpaid: 15" on Salary Positioning by Legal Entity meant 15%, i.e. 6
+// people, and was read as 15 people.
+export function barChart(canvas, { labels, datasets, horizontal = false, stacked = false, showLegend = null, valueSuffix = "" }) {
   destroyIfExists(canvas);
   const colors = seriesColors();
   const ds = datasets.map((d, i) => ({
@@ -171,6 +175,17 @@ export function barChart(canvas, { labels, datasets, horizontal = false, stacked
     ...d,
   }));
   const legend = showLegend === null ? datasets.length > 1 : showLegend;
+  const tooltip = tooltipConfig();
+  const valueAxis = baseScales().y;
+  if (valueSuffix) {
+    tooltip.callbacks = {
+      label: (ctx) => {
+        const v = horizontal ? ctx.parsed.x : ctx.parsed.y;
+        return `${ctx.dataset.label}: ${Number(v).toLocaleString("en-US", { maximumFractionDigits: 1 })}${valueSuffix}`;
+      },
+    };
+    valueAxis.ticks = { ...valueAxis.ticks, callback: (v) => `${v}${valueSuffix}` };
+  }
   const chart = new Chart(canvas, {
     type: "bar",
     data: { labels, datasets: ds },
@@ -178,10 +193,10 @@ export function barChart(canvas, { labels, datasets, horizontal = false, stacked
       indexAxis: horizontal ? "y" : "x",
       responsive: true,
       maintainAspectRatio: false,
-      plugins: { legend: baseLegend(legend), tooltip: tooltipConfig() },
+      plugins: { legend: baseLegend(legend), tooltip },
       scales: horizontal
-        ? { x: { ...baseScales().y, stacked }, y: { ...baseScales().x, stacked } }
-        : { x: { ...baseScales().x, stacked }, y: { ...baseScales().y, stacked } },
+        ? { x: { ...valueAxis, stacked }, y: { ...baseScales().x, stacked } }
+        : { x: { ...baseScales().x, stacked }, y: { ...valueAxis, stacked } },
     },
   });
   registry.set(canvas, chart);

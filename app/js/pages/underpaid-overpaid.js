@@ -198,7 +198,7 @@ export function render({ db, contentEl, filtersEl }) {
     barChart(cPositioningLe, {
       labels: leOrder,
       datasets: CATEGORY_ORDER.map((c, i) => ({ label: c, data: positioningByLe[i].map((v) => Math.round(v * 10) / 10), stacked: true })),
-      stacked: true,
+      stacked: true, valueSuffix: "%",
     });
 
     const underpaidByLe = leOrder.map((l) => levelFiltered.filter((r) => r.legalEntity === l && r.isUnderpaid).length);

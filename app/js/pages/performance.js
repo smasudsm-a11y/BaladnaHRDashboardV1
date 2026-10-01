@@ -125,7 +125,7 @@ export function render({ db, contentEl, filtersEl }) {
       const cr = enriched.filter((p) => legalEntityAllowed(db, p.legalEntity) && p.performanceCycle === cy && (dept === "All" || p.department === dept));
       return cr.length ? (cr.filter((p) => p.overallRating === "Exceeds Expectations" || p.overallRating === "Exceptional").length / cr.length) * 100 : 0;
     });
-    barChart(c4, { labels: cycleOrder, datasets: [{ label: "% High Performers", data: highSeries.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
+    barChart(c4, { labels: cycleOrder, datasets: [{ label: "High Performers", data: highSeries.map((v) => Math.round(v * 10) / 10) }], showLegend: false, valueSuffix: "%" });
 
     const preDist = RATING_ORDER.map((r) => rows.filter((p) => p.managerRating === r).length);
     const c5 = chartCard(grid, { title: "Pre vs. Post-Calibration Ratings", sub: "Manager's initial rating vs. final calibrated rating" });
@@ -148,6 +148,7 @@ export function render({ db, contentEl, filtersEl }) {
       })),
       horizontal: true,
       stacked: true,
+      valueSuffix: "%",
     });
 
     const gradeOrder = sortGrades(sortedUnique(enriched, (p) => p.jobGrade));

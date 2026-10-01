@@ -124,7 +124,7 @@ export function render({ db, contentEl, filtersEl }) {
     // Trend charts ignore the Year filter (they're the year axis), same
     // convention as probation-pip.js's year-trend chart.
     const c1 = chartCard(grid, { title: "Promotion Rate Trend", sub: `% of average headcount promoted${yearOrder.includes(String(refYear)) ? ` · ${refYear} is year-to-date` : ""}` });
-    barChart(c1, { labels: yearOrder, datasets: [{ label: "Promotion Rate %", data: yearOrder.map((y) => Number(rate(allYearPromos, y, employees).toFixed(1))) }], showLegend: false });
+    barChart(c1, { labels: yearOrder, datasets: [{ label: "Promotion Rate", data: yearOrder.map((y) => Number(rate(allYearPromos, y, employees).toFixed(1))) }], showLegend: false, valueSuffix: "%" });
 
     const c2 = chartCard(grid, { title: "Promotions by Year", drilldown: { records: allYearPromos, matchField: "year", datasetField: "eventType", db } });
     barChart(c2, {
@@ -140,7 +140,7 @@ export function render({ db, contentEl, filtersEl }) {
     const divOrder = sortedUnique(divScope, (e) => e.division);
     const divRates = divOrder.map((d) => Number(rate(divScopePromos.filter((r) => r.division === d), year, divScope.filter((e) => e.division === d)).toFixed(1)));
     const c3 = chartCard(grid, { title: "Promotion Rate by Division", sub: `${year}, % of average headcount`, drilldown: { records: divScopePromos.filter((r) => r.year === year), matchField: "division", db } });
-    barChart(c3, { labels: divOrder, datasets: [{ label: "Promotion Rate %", data: divRates }], showLegend: false, horizontal: true });
+    barChart(c3, { labels: divOrder, datasets: [{ label: "Promotion Rate", data: divRates }], showLegend: false, horizontal: true, valueSuffix: "%" });
 
     const deptCounts = sortedUnique(promos, (r) => r.department)
       .map((d) => [d, promos.filter((r) => r.department === d).length])
@@ -154,7 +154,7 @@ export function render({ db, contentEl, filtersEl }) {
 
     const genders = ["Male", "Female"];
     const c6 = chartCard(grid, { title: "Promotion Rate by Gender", sub: `${year}, % of average headcount`, drilldown: { records: promos, matchField: "gender", db } });
-    barChart(c6, { labels: genders, datasets: [{ label: "Promotion Rate %", data: genders.map((g) => Number(rate(promos.filter((r) => r.gender === g), year, employees.filter((e) => e.gender === g)).toFixed(1))) }], showLegend: false });
+    barChart(c6, { labels: genders, datasets: [{ label: "Promotion Rate", data: genders.map((g) => Number(rate(promos.filter((r) => r.gender === g), year, employees.filter((e) => e.gender === g)).toFixed(1))) }], showLegend: false, valueSuffix: "%" });
 
     const c7 = chartCard(grid, { title: "Promotions by Month", sub: `${year} — when promotion cycles land`, drilldown: { records: promos, matchField: "month", db } });
     barChart(c7, { labels: MONTH_NAMES, datasets: [{ label: "Promotions", data: MONTH_NAMES.map((m) => promos.filter((r) => r.month === m).length) }], showLegend: false });
@@ -217,7 +217,7 @@ export function render({ db, contentEl, filtersEl }) {
     const divScopePay = events.filter((r) => r.isPayChange && typeAllowed(r) && legalEntityAllowed(db, r.legalEntity) && (dept === "All" || r.department === dept));
     const divOrder = sortedUnique(divScope, (e) => e.division);
     const p3 = chartCard(grid, { title: "Pay Change Rate by Division", sub: `${year}, % of average headcount`, drilldown: { records: divScopePay.filter((r) => r.year === year), matchField: "division", db } });
-    barChart(p3, { labels: divOrder, datasets: [{ label: "Pay Change Rate %", data: divOrder.map((d) => Number(rate(divScopePay.filter((r) => r.division === d), year, divScope.filter((e) => e.division === d)).toFixed(1))) }], showLegend: false, horizontal: true });
+    barChart(p3, { labels: divOrder, datasets: [{ label: "Pay Change Rate", data: divOrder.map((d) => Number(rate(divScopePay.filter((r) => r.division === d), year, divScope.filter((e) => e.division === d)).toFixed(1))) }], showLegend: false, horizontal: true, valueSuffix: "%" });
 
     const deptCounts = sortedUnique(pay, (r) => r.department)
       .map((d) => [d, pay.filter((r) => r.department === d).length])
