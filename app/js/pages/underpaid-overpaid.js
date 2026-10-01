@@ -1,4 +1,4 @@
-import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { sortedUnique, sumBy, fmtInt, fmtPct, fmtMoney, salaryStructureLookup, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityFilter } from "../charts.js";
 
 // Shares Compensation's access grant (meta.section) rather than needing its
@@ -10,7 +10,7 @@ import { kpiCard, chartCard, barChart, doughnutChart, filterSelect, legalEntityF
 export const meta = {
   id: "underpaid-overpaid", section: "compensation", sectionLabel: "Compensation & Pay Equity",
   label: "Underpaid & Overpaid Analysis",
-  subtitle: "How far outside grade range base salaries sit, and by how much",
+  subtitle: "How far outside grade range total monthly cash sits, and by how much",
 };
 
 const SEVERITY_BANDS = ["0–9%", "10–19%", "20–29%", "30–39%", "40%+"];
@@ -48,19 +48,24 @@ function buildRecords(db) {
     if (!e || !isCurrentlyEmployed(e)) continue;
     const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
     if (!struct) continue;
+    // Total monthly cash, not basic -- the SAP bands are defined on total
+    // cash (see bandComparablePay in data.js).
+    const pay = bandComparablePay(db, employeeId);
+    if (pay === null) continue;
     const { salaryRangeMin: min, salaryRangeMax: max } = struct;
     // underpaidAmount/overpaidAmount stay native currency -- severityBand
     // divides each by its own min/max, a currency-agnostic %. The *Qar
     // variants are QAR-equivalent, for the KPI/chart totals below that sum
     // shortfall/excess across employees who may be on QAR or EGP.
-    const underpaidAmount = sal.baseSalary < min ? min - sal.baseSalary : 0;
-    const overpaidAmount = sal.baseSalary > max ? sal.baseSalary - max : 0;
-    const rangePenetration = ((sal.baseSalary - min) / (max - min)) * 100;
+    const underpaidAmount = pay < min ? min - pay : 0;
+    const overpaidAmount = pay > max ? pay - max : 0;
+    const rangePenetration = ((pay - min) / (max - min)) * 100;
     out.push({
       employeeId,
       employeeName: e.employeeName,
       grade: sal.grade,
       baseSalary: sal.baseSalary,
+      totalCash: pay,
       businessUnit: e.businessUnit,
       legalEntity: e.legalEntity,
       jobLevel: e.jobLevel,
@@ -114,7 +119,7 @@ export function render({ db, contentEl, filtersEl }) {
 
     const quartileCounts = QUARTILE_BUCKETS.map((b) => rows.filter((r) => r.positioning === b).length);
     const cQuartiles = chartCard(overviewGrid, {
-      title: "Count / % By Quartiles", sub: "Full population — where base salary sits within its grade's range",
+      title: "Count / % By Quartiles", sub: "Full population — where total monthly cash sits within its grade's range",
       drilldown: { records: rows, matchField: "positioning", db },
     });
     barChart(cQuartiles, { labels: QUARTILE_BUCKETS, datasets: [{ label: "Employees", data: quartileCounts }], showLegend: false });

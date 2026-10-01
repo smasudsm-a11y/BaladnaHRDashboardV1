@@ -1,4 +1,4 @@
-import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
+import { sortedUnique, sortGrades, avgBy, fmtInt, fmtDec, fmtPct, fmtMoney, salaryStructureLookup, bandComparablePay, toQarEquivalent, JOB_LEVEL_ORDER, isCurrentlyEmployed, legalEntityAllowed } from "../data.js";
 import { kpiCard, chartCard, barChart, bin, filterSelect, legalEntityFilter } from "../charts.js";
 
 export const meta = { id: "compensation", label: "Compensation & Pay Equity", subtitle: "Base pay, total rewards, and internal pay equity" };
@@ -28,12 +28,14 @@ function buildRecords(db) {
     if (!e || !isCurrentlyEmployed(e)) continue;
     const tr = db.latestTotalRewards.get(employeeId);
     const struct = salaryStructureLookup(db, sal.grade, e.jobFamily, sal.currency);
-    // rangePenetration/compaRatio compare against the employee's own
-    // native-currency salary_structure band, so they use sal.baseSalary
-    // as-is. baseSalary/totalCash/totalRem on the record are QAR-equivalent
-    // instead, since every KPI/chart below this point averages or sums
-    // them across employees who may be on QAR or EGP.
-    const rangePenetration = struct ? ((sal.baseSalary - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null;
+    // rangePenetration/compaRatio compare TOTAL cash (the figure the SAP
+    // bands are defined on -- see bandComparablePay) against the employee's
+    // own native-currency band, so no conversion there. baseSalary/totalCash/
+    // totalRem on the record are QAR-equivalent instead, since every KPI/
+    // chart below this point averages or sums them across employees who may
+    // be on QAR or EGP.
+    const bandPay = struct ? bandComparablePay(db, employeeId) : null;
+    const rangePenetration = bandPay !== null ? ((bandPay - struct.salaryRangeMin) / (struct.salaryRangeMax - struct.salaryRangeMin)) * 100 : null;
     out.push({
       employeeId,
       grade: sal.grade,
@@ -46,7 +48,7 @@ function buildRecords(db) {
       jobLevel: e.jobLevel,
       gender: e.gender,
       workforceCategory: e.workforceCategory,
-      compaRatio: struct ? sal.baseSalary / struct.salaryMidpoint : null,
+      compaRatio: bandPay !== null ? bandPay / struct.salaryMidpoint : null,
       rangePenetration,
       positioning: positioningBucket(rangePenetration),
     });
@@ -81,8 +83,8 @@ export function render({ db, contentEl, filtersEl }) {
     kpiRow.className = "kpi-row";
     contentEl.appendChild(kpiRow);
     kpiCard(kpiRow, { label: "Avg Total Cash Compensation", value: fmtMoney(avgCTC), note: `${fmtInt(rows.length)} active employees` });
-    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "1.00 = at grade midpoint" });
-    kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration) });
+    kpiCard(kpiRow, { label: "Avg Compa-Ratio", value: fmtDec(avgCompa, 2), note: "total cash vs. grade midpoint (1.00 = at mid)" });
+    kpiCard(kpiRow, { label: "Avg Range Penetration", value: fmtPct(avgPenetration), note: "total cash within grade range" });
     kpiCard(kpiRow, {
       label: "Gender Pay Gap Index", value: fmtDec(payGapIndex, 1),
       note: `Female avg ${fmtMoney(avgFemale)} vs Male avg ${fmtMoney(avgMale)}`,
@@ -128,7 +130,7 @@ export function render({ db, contentEl, filtersEl }) {
     barChart(c4, { labels: levels.slice(1), datasets: [{ label: "Pay Gap Index", data: gapByLevel.map((v) => Math.round(v * 10) / 10) }], showLegend: false });
 
     const bucketCounts = BUCKET_ORDER.map((b) => rows.filter((r) => r.positioning === b).length);
-    const c5 = chartCard(grid, { title: "Salary Positioning by Quartile", sub: "Where base salary sits within its grade's range", drilldown: { records: rows, matchField: "positioning", db } });
+    const c5 = chartCard(grid, { title: "Salary Positioning by Quartile", sub: "Where total monthly cash sits within its grade's range", drilldown: { records: rows, matchField: "positioning", db } });
     barChart(c5, { labels: BUCKET_ORDER, datasets: [{ label: "Employees", data: bucketCounts }], showLegend: false });
 
     // Grade tier (Junior/Mid/Senior/Executive, from salary_structure.grade_tier

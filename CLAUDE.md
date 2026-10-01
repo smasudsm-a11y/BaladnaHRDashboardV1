@@ -245,6 +245,29 @@ the same denominator as Promotion Rate. Expected company-wide figures
 (distinct employees / rate): 2024 91 / 4.6%, 2025 123 / 6.2%, 2026 YTD
 498 / 25.3%, the last driven by 362 Benefit Adjustments in Jan 2026.
 
+### Salary bands compare TOTAL cash, not basic (2026-10-01)
+
+User reported Underpaid & Overpaid as empty. **Cause 1**: live
+`salary_structure` had 0 rows. `25_salary_structure_composite_key.sql`
+deletes every band before re-keying, and the bands were never re-uploaded
+afterwards. Fixed by re-uploading "07 — Compensation Dashboard" (its
+3rd sheet carries the 183 bands). If band-based charts ever go blank
+again, check `select count(*) from salary_structure` first.
+**Cause 2, a real bug**: every band comparison used **basic** salary, but
+Position Data's `Sal. Min/Mid/Max` bands are defined on **total monthly
+cash** (basic + allowances). On basic, 75% showed as underpaid (median
+0.62× midpoint); on total cash it's 7% under / 91% within / 2% over
+(median 0.87×), in line with the real Power BI report's ~3/94/2. The user
+confirmed switching. New shared `bandComparablePay(db, employeeId)` in
+`data.js` (total_rewards' `total_cash_compensation`, native currency, null
+→ excluded, never silently swapped for basic) is now used by Compensation
+(compa-ratio, range penetration, quartile/tier charts), Underpaid &
+Overpaid (everything), and New Hires' Hires Above Mid %. New Hires had
+no total_rewards access, hence `30_newhires_total_rewards_access.sql`.
+Expected company-wide: 1,966 evaluated, avg compa-ratio 0.93, avg range
+penetration 27.7%, 137 under / 1,791 within / 38 over. Gender pay gap and
+salary histograms still use basic (not band comparisons, so unchanged).
+
 ## Current status (2026-08-16, later same day) — read this first if resuming
 
 **Round 1** of the phased plan to close gaps between this dashboard and a
@@ -1171,6 +1194,10 @@ sync" feature notes for 27's reasoning.)
     new `promotions` section, plus `employee_master`'s sectioned-read
     widening to include `promotions`. See the "Merit Increase & Promotions"
     section above.
+30. `30_newhires_total_rewards_access.sql` — widens `total_rewards`'
+    sectioned-read policy to include `newhires` (Hires Above Mid % now
+    compares total cash against the band). See "Salary bands compare TOTAL
+    cash" above.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

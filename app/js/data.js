@@ -44,7 +44,7 @@ const SECTION_TABLES = {
   exec: ["employee_master", "attrition", "absenteeism", "leave", "base_salary", "kpi_targets", "critical_positions", "successors", "stage_gate_scores", "initiatives"],
   headcount: ["employee_master", "org_hierarchy"],
   recruitment: ["recruitment", "employee_master", "budgeted_positions"],
-  newhires: ["employee_master", "base_salary", "salary_structure"],
+  newhires: ["employee_master", "base_salary", "total_rewards", "salary_structure"],
   diversity: ["diversity", "recruitment", "attrition"],
   compensation: ["base_salary", "employee_master", "total_rewards", "salary_structure", "employee_benefits"],
   attrition: ["employee_master", "attrition", "performance", "kpi_targets"],
@@ -182,6 +182,22 @@ export function emp(db, employeeId) {
 // return null.
 export function salaryStructureLookup(db, grade, jobFamily, currency) {
   return db.salaryStructureIndex.get(`${grade}|${jobFamily}|${currency}`) || null;
+}
+
+// The pay figure to compare against a salary_structure band (compa-ratio,
+// range penetration, underpaid/overpaid, above/below midpoint). The real SAP
+// bands (Position Data's Sal. Min/Mid/Max) are defined on TOTAL monthly cash
+// -- basic + allowances -- not basic alone. Verified 2026-10-01: basic sits at
+// a median 0.62x the band midpoint (75% "underpaid"), total cash at 0.87x
+// (7% under / 91% within / 2% over, in line with the real Power BI report's
+// ~3/94/2). Native currency, same as the band itself -- convert with
+// toQarEquivalent only when summing across employees. Returns null (excluded
+// from band analysis, never silently swapped for basic) when the employee
+// has no total_rewards row.
+export function bandComparablePay(db, employeeId) {
+  const tr = db.latestTotalRewards.get(employeeId);
+  const pay = tr ? Number(tr.totalCashCompensation) : NaN;
+  return pay > 0 ? pay : null;
 }
 
 export function withEmployeeFields(db, rows, fields) {
