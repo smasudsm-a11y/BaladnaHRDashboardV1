@@ -378,10 +378,17 @@ old data and is safe to merge before migration 31 and the upload. **Merge
 the code first**: old code with new data would collide the Expat and
 National "ALL" rows. This supersedes the earlier "exclude Qatari
 nationals" change (that PR was never merged). Qataris now sit on the
-National scale, and four G14 Qataris on 26,000 are still above the
-National G14 max of 24,760, which is genuine. Expected after upload:
-1,958 evaluated, 132 under / 1,794 within / 32 over, avg compa-ratio 0.93,
-pay gap index 101.7, 2026 Baladna Qatar joiners above midpoint 16.
+National scale. **The National scale excludes the Qatari social
+allowance** (user-confirmed). Its actual SAP amount (Master List "Social
+Allowance", 4,000 or 6,000, only Qataris receive it) is now its own
+`total_rewards.social_allowance` column (migration 32; still also inside
+`other_allowances`, so no totals change), and `bandComparablePay`
+subtracts it for anyone on the National scale. The user chose actual
+amounts over a flat 4,000: 4 of the 8 Qataris in the data get 6,000. With
+that, all 5 current Qataris are within range (compa 0.95-0.99). Expected
+after upload: 1,958 evaluated, 132 under / 1,798 within / 28 over, avg
+compa-ratio 0.92, pay gap index 101.1, 2026 Baladna Qatar joiners above
+midpoint 14.
 `build_salary_structure.ps1` (Position Data derivation, with its USD /
 excluded / system-error lists) now matters only for Egypt.
 
@@ -1353,6 +1360,9 @@ sync" feature notes for 27's reasoning.)
     `(grade, job_family, currency, pay_scale)` and clears it. Reload by
     re-uploading "07 — Compensation Dashboard". See "Official pay scales"
     above.
+32. `32_total_rewards_social_allowance.sql` — adds
+    `total_rewards.social_allowance` (Qatari social allowance, excluded
+    from National-scale band comparisons). Loaded by the same "07" upload.
 
 `check_row_counts.sql` / `diagnose_user_access.sql` are diagnostic scripts, not migrations.
 

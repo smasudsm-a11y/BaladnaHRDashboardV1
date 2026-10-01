@@ -103,6 +103,9 @@ const UPLOAD_UNITS = [
           "Education Allowance": "education_allowance", "Other Allowances": "other_allowances",
           "Variable Pay": "variable_pay", "Bonus": "bonus", "Incentive": "incentive",
           "Total Cash Compensation": "total_cash_compensation", "Total Remuneration": "total_remuneration",
+          // Qatari social allowance (also inside Other Allowances) -- see
+          // 32_total_rewards_social_allowance.sql.
+          "Social Allowance": "social_allowance",
         },
       },
       {

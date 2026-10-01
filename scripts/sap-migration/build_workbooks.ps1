@@ -1,4 +1,4 @@
-﻿$ErrorActionPreference = "Stop"
+$ErrorActionPreference = "Stop"
 $Scratch = "C:\Users\s.masud\OneDrive - BALADNA\Documents\Synthetic HR Dashboard Data\scripts\sap-migration"
 $OutDir = Join-Path $Scratch "workbooks"  # was an old session's temp folder
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -142,7 +142,7 @@ NewWorkbook @(
             "housing_allowance","Housing Allowance","transport_allowance","Transport Allowance",
             "education_allowance","Education Allowance","other_allowances","Other Allowances",
             "variable_pay","Variable Pay","bonus","Bonus","incentive","Incentive",
-            "total_cash_compensation","Total Cash Compensation","total_remuneration","Total Remuneration"
+            "total_cash_compensation","Total Cash Compensation","total_remuneration","Total Remuneration","social_allowance","Social Allowance"
         )
     },
     @{

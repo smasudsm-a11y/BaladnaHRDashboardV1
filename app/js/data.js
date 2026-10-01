@@ -211,9 +211,20 @@ export function salaryBandFor(db, e, sal) {
 // toQarEquivalent only when summing across employees. Returns null (excluded
 // from band analysis, never silently swapped for basic) when the employee
 // has no total_rewards row.
+//
+// For employees on the Qatari National scale, the social allowance is taken
+// off first: that scale excludes it (user-confirmed 2026-10-01). It's the
+// actual SAP amount (4,000 or 6,000), from total_rewards.social_allowance;
+// 0 until that column is loaded. Example: a G14 national on 26,000 total cash
+// with 4,000 social compares 22,000 against the 19,810-24,760 band.
 export function bandComparablePay(db, employeeId) {
   const tr = db.latestTotalRewards.get(employeeId);
-  const pay = tr ? Number(tr.totalCashCompensation) : NaN;
+  let pay = tr ? Number(tr.totalCashCompensation) : NaN;
+  if (pay > 0) {
+    const e = db.employeeIndex?.get(employeeId);
+    const sal = db.latestBaseSalary?.get(employeeId);
+    if (payScaleFor(e, sal?.currency) === "National") pay -= Number(tr.socialAllowance) || 0;
+  }
   return pay > 0 ? pay : null;
 }
 
