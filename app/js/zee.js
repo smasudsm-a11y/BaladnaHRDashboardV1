@@ -6,7 +6,13 @@ import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./supabase-config.js";
 // router (app.js) already let the user into. There is no separate
 // permission check to write or get wrong — see CLAUDE.md's Zee gotcha.
 let currentPageLabel = "";
-let currentContextText = "";
+// The page's content element, NOT a text snapshot of it: filters redraw the
+// page in place without a route change, so the context is rebuilt from this
+// element at the moment each question is sent (see sendQuestion). Snapshotting
+// it once in setPageContext meant Zee kept answering from whatever was on
+// screen when the page first opened -- e.g. all 3 legal entities after the
+// user had filtered to Baladna Qatar.
+let currentContentEl = null;
 let history = [];
 
 // Deployed Edge Function is named "quick-handler", not "zee-chat" — Supabase
@@ -24,10 +30,33 @@ function textOf(el) {
 // charts.js's drilldown click handler already reads from), and any plain
 // data table — into one plain-text block. This is the *entire* set of facts
 // Zee can draw on for the current page; nothing else is ever sent to it.
+// The filter bar's current selections (the global Legal Entity dropdown plus
+// each page's own selects), so Zee knows what slice the numbers represent.
+function describeFilters() {
+  const filtersEl = document.getElementById("page-filters");
+  if (!filtersEl) return [];
+  const out = [];
+  const le = filtersEl.querySelector(".legal-entity-filter");
+  if (le) out.push(`Legal Entity: ${textOf(le.querySelector(".legal-entity-btn")).replace(/\s*▾\s*$/, "")}`);
+  for (const sel of filtersEl.querySelectorAll("select")) {
+    const label = textOf(sel.closest("label")?.querySelector("span"));
+    const chosen = textOf(sel.options[sel.selectedIndex]);
+    if (label) out.push(`${label}: ${chosen}`);
+  }
+  return out;
+}
+
 export function buildPageContext(pageLabel, contentEl) {
   if (!contentEl) return `Page: ${pageLabel}\n(nothing rendered yet)`;
 
   const lines = [`Page: ${pageLabel}`, ""];
+
+  const filters = describeFilters();
+  if (filters.length) {
+    lines.push("Filters currently applied (every number below already reflects these):");
+    for (const f of filters) lines.push(`- ${f}`);
+    lines.push("");
+  }
 
   const kpis = Array.from(contentEl.querySelectorAll(".kpi-card"));
   if (kpis.length) {
@@ -77,7 +106,7 @@ export function buildPageContext(pageLabel, contentEl) {
 
 export function setPageContext(pageLabel, contentEl) {
   currentPageLabel = pageLabel || "";
-  currentContextText = buildPageContext(currentPageLabel, contentEl);
+  currentContentEl = contentEl || null;
   history = []; // new page, new conversation — Zee shouldn't carry over context across pages
   const messagesEl = document.getElementById("zee-messages");
   if (messagesEl) messagesEl.innerHTML = "";
@@ -118,7 +147,8 @@ async function sendQuestion(question) {
       },
       body: JSON.stringify({
         pageLabel: currentPageLabel,
-        contextText: currentContextText,
+        // Rebuilt now, not at page load, so filter changes are reflected.
+        contextText: buildPageContext(currentPageLabel, currentContentEl),
         question,
         history,
       }),
