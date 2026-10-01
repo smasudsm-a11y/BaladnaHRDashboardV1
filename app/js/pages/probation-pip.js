@@ -69,7 +69,7 @@ export function render({ db, contentEl, filtersEl }) {
 
     const deptOrder = sortedUnique(probationRows, (r) => r.department).sort();
     const byDeptOutcome = PROBATION_OUTCOME_ORDER.map((o) => deptOrder.map((d) => probationRows.filter((r) => r.department === d && r.outcome === o).length));
-    const c2 = chartCard(grid, { title: "Probation Outcome by Department", drilldown: { records: probationRows, matchField: "department", db } });
+    const c2 = chartCard(grid, { title: "Probation Outcome by Department", drilldown: { records: probationRows, matchField: "department", datasetField: "outcome", db } });
     barChart(c2, { labels: deptOrder, datasets: PROBATION_OUTCOME_ORDER.map((o, i) => ({ label: o, data: byDeptOutcome[i], stacked: true })), stacked: true, horizontal: true });
 
     const yearOrder = sortedUnique(probation, (r) => r.probationStartDate?.slice(0, 4)).sort();

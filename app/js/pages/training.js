@@ -100,7 +100,12 @@ export function render({ db, contentEl, filtersEl }) {
     const gradeOrder = sortGrades(sortedUnique(enriched, (t) => t.jobGrade));
     const assignedByGrade = gradeOrder.map((g) => rows.filter((t) => t.jobGrade === g).length);
     const completedByGrade = gradeOrder.map((g) => rows.filter((t) => t.jobGrade === g && t.completionStatus === "Completed").length);
-    const c7 = chartCard(grid, { title: "Assigned / Completed by Grade", drilldown: { records: rows, matchField: "jobGrade", db } });
+    // "Completed" is a subset of "Assigned", not a separate field value, so a
+    // matchFn (which receives the clicked segment) instead of datasetField.
+    const c7 = chartCard(grid, { title: "Assigned / Completed by Grade", drilldown: {
+      records: rows, db,
+      matchFn: (t, grade, segment) => t.jobGrade === grade && (segment !== "Completed" || t.completionStatus === "Completed"),
+    } });
     barChart(c7, { labels: gradeOrder, datasets: [
       { label: "Assigned", data: assignedByGrade, stacked: true },
       { label: "Completed", data: completedByGrade, stacked: true },

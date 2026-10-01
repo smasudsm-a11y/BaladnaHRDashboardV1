@@ -319,19 +319,26 @@ export function chartCard(container, { title, sub, size = "grid-2", height = "",
       if (!els.length) return;
       const { index, datasetIndex } = els[0];
       const label = chart.data.labels[index];
+      // matchFn also gets the clicked dataset's label, for stacked charts whose
+      // segments aren't a single field value (e.g. Training's Assigned vs
+      // Completed, where Completed is a subset of Assigned).
+      const dsLabel = chart.data.datasets[datasetIndex]?.label;
       let matched = drilldown.matchFn
-        ? drilldown.records.filter((r) => drilldown.matchFn(r, label))
+        ? drilldown.records.filter((r) => drilldown.matchFn(r, label, dsLabel))
         : drilldown.records.filter((r) => String(r[drilldown.matchField]) === String(label));
-      if (drilldown.datasetField && chart.data.datasets[datasetIndex]) {
-        const dsLabel = chart.data.datasets[datasetIndex].label;
+      if (drilldown.datasetField && dsLabel !== undefined) {
         matched = matched.filter((r) => String(r[drilldown.datasetField]) === String(dsLabel));
       }
+      // Name the clicked segment too when the chart has more than one series,
+      // so a list opened from a stacked bar says which slice it is (e.g.
+      // "Egypt — Underpaid", not just "Egypt").
+      const segment = chart.data.datasets.length > 1 && dsLabel ? ` — ${dsLabel}` : "";
       openDrilldownModal({
-        title: `${title} — ${label}`,
+        title: `${title} — ${label}${segment}`,
         records: matched,
         columns: drilldown.columns,
         db: drilldown.db,
-        filenamePrefix: `${title} - ${label}`,
+        filenamePrefix: `${title} - ${label}${segment.replace(" — ", " - ")}`,
       });
     });
   }
